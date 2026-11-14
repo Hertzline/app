@@ -41,13 +41,14 @@ jobs:
           components: rustfmt, clippy
 
       - name: Fmt
-        run: cargo fmt --all -- --check
+        # Only the app package; --all would also fmt the sibling core workspace.
+        run: cargo fmt -p hertzline-app -- --check
 
       - name: Clippy
-        run: cargo clippy --locked -- -D warnings
+        run: cargo clippy -p hertzline-app --locked --all-targets -- -D warnings
 
       - name: Test
-        run: cargo test --locked
+        run: cargo test -p hertzline-app --locked
 
       - name: Release build
-        run: cargo build --release --locked
+        run: cargo build -p hertzline-app --release --locked
