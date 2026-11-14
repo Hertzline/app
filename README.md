@@ -8,13 +8,15 @@ Unprivileged by default. Elevation is requested per action later, never for the 
 
 | Path | Role |
 |---|---|
-| `crates/hertzline-app` | Profile lifecycle host + shell route model |
+| `crates/hertzline-app` | Profile lifecycle, shell routes, measure + benchmark hosts |
 | `src-tauri` | Tauri 2 binary (`hertzline`) |
 | `ui` | Static shell UI (hash routes) |
 
-## Shell routes (HZ-029)
+## Shell routes (HZ-029 / HZ-030)
 
 `#/measure` · `#/benchmark` · `#/actions` · `#/profiles` · `#/changelog` · `#/restore-all`
+
+Measure runs frame probe + hardware/disk/network collectors and exports CSV/JSON with identical fields. Benchmark uses warm-up, fixed duration, >=3 passes, noise-band verdict, and offers revert on "no measurable effect". No "+X FPS" claim without a local before/after result.
 
 ## Versions (verified 2026-11-14)
 

@@ -90,7 +90,7 @@ body {
 
 main {
   padding: 1.25rem 1.5rem 2rem;
-  max-width: 42rem;
+  max-width: 48rem;
 }
 
 main h1 {
@@ -100,7 +100,17 @@ main h1 {
   letter-spacing: -0.015em;
 }
 
-main p {
+main h2 {
+  margin: 0 0 0.5rem;
+  font-family: Georgia, "Times New Roman", serif;
+  font-size: 1.1rem;
+}
+
+main p,
+.lede,
+.muted,
+.note,
+.status {
   margin: 0 0 0.75rem;
   color: var(--muted);
 }
@@ -109,6 +119,108 @@ main p {
   margin-top: 1.5rem;
   font-size: 0.85rem;
   color: var(--muted);
+}
+
+.panel {
+  margin: 0 0 1rem;
+  padding: 0.9rem 1rem;
+  border: 1px solid var(--line);
+  background: color-mix(in srgb, var(--panel) 92%, white);
+}
+
+.field {
+  display: grid;
+  gap: 0.3rem;
+  margin: 0 0 0.75rem;
+}
+
+.field-label {
+  font-size: 0.9rem;
+  color: var(--ink);
+}
+
+input,
+textarea,
+button {
+  font: inherit;
+}
+
+input,
+textarea {
+  width: 100%;
+  padding: 0.45rem 0.55rem;
+  border: 1px solid var(--line);
+  border-radius: 0.25rem;
+  color: var(--ink);
+  background: #fff;
+}
+
+input:focus-visible,
+textarea:focus-visible,
+button:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+
+.actions-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-top: 0.5rem;
+}
+
+.btn {
+  padding: 0.45rem 0.8rem;
+  border: 1px solid var(--accent);
+  border-radius: 0.25rem;
+  background: var(--accent);
+  color: var(--accent-ink);
+  cursor: pointer;
+}
+
+.btn:hover {
+  background: var(--focus);
+  border-color: var(--focus);
+}
+
+.btn-secondary {
+  background: transparent;
+  color: var(--ink);
+  border-color: var(--line);
+}
+
+.btn-secondary:hover {
+  background: #e8f1ec;
+}
+
+.metrics {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 0 0 0.75rem;
+  font-size: 0.92rem;
+}
+
+.metrics th,
+.metrics td {
+  padding: 0.35rem 0.45rem;
+  border-bottom: 1px solid var(--line);
+  text-align: left;
+  vertical-align: top;
+}
+
+.metrics th {
+  width: 11rem;
+  color: var(--ink);
+  font-weight: 600;
+}
+
+.revert {
+  color: var(--ink);
+  font-weight: 600;
+}
+
+.verdict {
+  border-color: var(--accent);
 }
 
 @media (max-width: 720px) {
