@@ -692,6 +692,9 @@ fn build_host_action(
     input: Option<&str>,
     confirmed_destructive: bool,
 ) -> Result<Box<dyn Action>, String> {
+    // Destructive confirm is only consumed by Windows/Linux cleanup arms.
+    #[cfg(not(any(windows, target_os = "linux")))]
+    let _ = confirmed_destructive;
     match id {
         "mock_toggle" => Ok(Box::new(MockToggleAction::new("mock_toggle", "off", "on"))),
         #[cfg(windows)]
