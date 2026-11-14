@@ -1,0 +1,9 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "default",
+  "description": "Capability for the Hertzline main window (unprivileged shell)",
+  "windows": ["main"],
+  "permissions": [
+    "core:default"
+  ]
+}

@@ -1,23 +1,46 @@
 # Hertzline / app
 
-Desktop host for [Hertzline](https://github.com/Hertzline).
+Desktop shell for [Hertzline](https://github.com/Hertzline).
 
-Unprivileged by default. Profile apply-on-start / restore-on-exit / crash recovery live here and in `hertzline-core` (HZ-028). The Tauri UI shell is HZ-029.
+Unprivileged by default. Elevation is requested per action later, never for the whole process.
 
 ## Layout
 
 | Path | Role |
 |---|---|
-| `crates/hertzline-app` | Profile lifecycle host (`ProfileHost`) |
+| `crates/hertzline-app` | Profile lifecycle host + shell route model |
+| `src-tauri` | Tauri 2 binary (`hertzline`) |
+| `ui` | Static shell UI (hash routes) |
+
+## Shell routes (HZ-029)
+
+`#/measure` · `#/benchmark` · `#/actions` · `#/profiles` · `#/changelog` · `#/restore-all`
+
+## Versions (verified 2026-11-14)
+
+| Package | Version | License | Source |
+|---|---|---|---|
+| tauri | 2.12.5 | Apache-2.0 OR MIT | crates.io `max_stable` |
+| tauri-build | 2.7.4 | Apache-2.0 OR MIT | crates.io |
+| @tauri-apps/cli | 2.12.4 | Apache-2.0 OR MIT | npm latest |
 
 ## Build
 
+Requires sibling checkout of `Hertzline/core` at `../core`.
+
 ```bash
+npm ci
 cargo test --locked
-cargo build --release --locked
+npm run build
 ```
 
-**Build note:** this crate path-depends on sibling `../core` (`Hertzline/core`). CI checks out that repo next to `app`.
+Headless smoke (no window):
+
+```bash
+# after release build
+set HERTZLINE_APP_SMOKE=1
+target/release/hertzline.exe
+```
 
 ## Profile lifecycle (HZ-028)
 

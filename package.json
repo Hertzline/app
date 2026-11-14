@@ -1,0 +1,15 @@
+{
+  "name": "hertzline-app",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "tauri": "tauri",
+    "build": "tauri build --no-bundle",
+    "dev": "tauri dev",
+    "smoke": "tauri build --no-bundle"
+  },
+  "devDependencies": {
+    "@tauri-apps/cli": "2.12.4"
+  }
+}

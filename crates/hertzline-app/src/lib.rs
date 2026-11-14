@@ -1,10 +1,12 @@
-//! Hertzline desktop host library (HZ-028 profile lifecycle).
+//! Hertzline desktop host library.
 //!
-//! Full Tauri shell arrives in HZ-029. This crate owns the unprivileged
-//! apply-on-start / restore-on-exit / crash-recover host that the UI will call.
+//! Profile lifecycle (HZ-028) plus shell route model (HZ-029).
+//! The Tauri binary lives in `src-tauri` and stays unprivileged.
 
 pub mod profile_host;
+pub mod shell;
 
 pub const CRATE_VERSION: &str = env!("CARGO_PKG_VERSION");
 
 pub use profile_host::{ProfileHost, ProfileHostError};
+pub use shell::{shell_info, AppRoute, RouteInfo, ShellInfo};

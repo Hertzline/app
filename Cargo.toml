@@ -2,6 +2,7 @@
 resolver = "2"
 members = [
   "crates/hertzline-app",
+  "src-tauri",
 ]
 
 [workspace.package]
@@ -14,6 +15,9 @@ repository = "https://github.com/Hertzline/app"
 hertzline-core = { path = "../core/crates/hertzline-core" }
 serde = { version = "1.0.229", features = ["derive"] }
 serde_json = "1.0.154"
+# Verified 2026-11-14: crates.io max_stable tauri 2.12.5; tauri-build 2.7.4 (Apache-2.0 OR MIT).
+tauri = { version = "=2.12.5", features = [] }
+tauri-build = { version = "=2.7.4", features = [] }
 
 [profile.release]
 codegen-units = 1

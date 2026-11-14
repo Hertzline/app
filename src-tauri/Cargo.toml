@@ -1,0 +1,26 @@
+[package]
+name = "hertzline"
+version = "0.0.0"
+description = "Hertzline desktop shell (Tauri 2, unprivileged)"
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+publish = false
+
+[lib]
+name = "hertzline_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[[bin]]
+name = "hertzline"
+path = "src/main.rs"
+
+[build-dependencies]
+tauri-build = { workspace = true }
+
+[dependencies]
+hertzline-app = { path = "../crates/hertzline-app" }
+hertzline-core = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+tauri = { workspace = true }
