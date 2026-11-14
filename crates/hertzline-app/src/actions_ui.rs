@@ -1132,15 +1132,9 @@ pub fn macos_honesty_banner() -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::sync::{Mutex, OnceLock};
-
-    fn env_lock() -> &'static Mutex<()> {
-        static LOCK: OnceLock<Mutex<()>> = OnceLock::new();
-        LOCK.get_or_init(|| Mutex::new(()))
-    }
 
     fn with_temp_store<T>(f: impl FnOnce() -> T) -> T {
-        let _guard = env_lock().lock().unwrap();
+        let _guard = crate::test_env::lock();
         let dir = std::env::temp_dir().join(format!(
             "hertzline-app-hz031-{}-{}",
             std::process::id(),

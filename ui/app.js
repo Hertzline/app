@@ -1,16 +1,12 @@
 const { invoke } = window.__TAURI__.core
 
-const PLACEHOLDER = {
-  profiles:
-    "Detect games from documented paths and apply profiles on start. Profile editing UI lands in the profiles task.",
-}
-
 let shellRoutes = []
 let shellInfo = null
 let lastMeasure = null
 let beforeBench = null
 let afterBench = null
 let lastVerdict = null
+let profilesState = null
 
 const parseRouteId = () => {
   const hash = window.location.hash.replace(/^#\/?/, "")
@@ -446,10 +442,6 @@ const renderBenchmark = async (root) => {
   refreshResults()
 }
 
-const renderPlaceholder = (root, id) => {
-  root.appendChild(el("p", "lede", PLACEHOLDER[id] || "This shell route is registered."))
-}
-
 const renderExplanation = (parent, explanation) => {
   const dl = el("dl", "explanation")
   const rows = [
@@ -616,6 +608,199 @@ const renderActions = async (root) => {
   root.appendChild(status)
 }
 
+const renderProfiles = async (root) => {
+  root.appendChild(
+    el(
+      "p",
+      "lede",
+      "Per-game profiles apply a saved action set when the game starts and restore every change on exit. Detection uses documented launcher paths only."
+    )
+  )
+  const status = el("p", "status", "")
+  status.setAttribute("role", "status")
+  const results = el("div", "results")
+
+  const refresh = async () => {
+    results.replaceChildren()
+    try {
+      profilesState = await invoke("profiles_get_overview")
+      results.appendChild(el("p", "note", profilesState.note))
+
+      const activePanel = el("div", "panel")
+      activePanel.appendChild(el("h2", null, "Active session"))
+      if (profilesState.active.active) {
+        activePanel.appendChild(
+          el(
+            "p",
+            null,
+            `${profilesState.active.name} (${profilesState.active.game_key}) · phase ${profilesState.active.phase}`
+          )
+        )
+        activePanel.appendChild(
+          el("p", "muted", `Actions: ${profilesState.active.action_ids.join(", ") || "(none)"}`)
+        )
+        activePanel.appendChild(
+          button(
+            "Restore on exit",
+            async () => {
+              status.textContent = "Restoring active profile…"
+              try {
+                const outcome = await invoke("profiles_restore", { labeledMock: false })
+                if (outcome.status === "restored") {
+                  status.textContent = `Restored ${outcome.name} (${outcome.game_key}).`
+                } else {
+                  status.textContent = `Restore failed: ${outcome.detail}`
+                }
+                await refresh()
+              } catch (error) {
+                status.textContent = `Restore failed: ${error}`
+              }
+            },
+            { ariaLabel: "Restore active profile on game exit" }
+          )
+        )
+      } else {
+        activePanel.appendChild(el("p", "muted", "No profile session is active."))
+      }
+      results.appendChild(activePanel)
+
+      const manualPanel = el("div", "panel")
+      manualPanel.appendChild(el("h2", null, "Add manual path"))
+      const nameInput = el("input")
+      nameInput.type = "text"
+      nameInput.id = "manual-name"
+      nameInput.setAttribute("aria-label", "Manual game name")
+      nameInput.autocomplete = "off"
+      const pathInput = el("input")
+      pathInput.type = "text"
+      pathInput.id = "manual-path"
+      pathInput.setAttribute("aria-label", "Manual install path")
+      pathInput.autocomplete = "off"
+      manualPanel.appendChild(field("Game name", nameInput))
+      manualPanel.appendChild(field("Install path", pathInput))
+      manualPanel.appendChild(
+        button(
+          "Add manual path",
+          async () => {
+            status.textContent = "Adding manual path…"
+            try {
+              profilesState = await invoke("profiles_add_manual", {
+                request: {
+                  name: nameInput.value,
+                  install_path: pathInput.value,
+                },
+              })
+              status.textContent = "Manual path added."
+              nameInput.value = ""
+              pathInput.value = ""
+              await refresh()
+            } catch (error) {
+              status.textContent = `Manual path failed: ${error}`
+            }
+          },
+          { ariaLabel: "Add manual game install path" }
+        )
+      )
+      results.appendChild(manualPanel)
+
+      results.appendChild(el("h2", null, `Detected games (${profilesState.games.length})`))
+      if (!profilesState.games.length) {
+        results.appendChild(
+          el("p", "muted", "No games found yet. Add a manual path or install a supported launcher.")
+        )
+      }
+      for (const game of profilesState.games) {
+        const panel = el("div", "panel")
+        panel.appendChild(el("h2", null, game.name))
+        panel.appendChild(
+          el("p", "muted", `${game.source} · ${game.game_key} · ${game.install_path}`)
+        )
+        const existing =
+          profilesState.profiles.find((p) => p.game_key === game.game_key) || {
+            game_key: game.game_key,
+            name: game.name,
+            action_ids: [],
+          }
+        const actionsInput = el("input")
+        actionsInput.type = "text"
+        actionsInput.value = existing.action_ids.join(", ")
+        actionsInput.setAttribute(
+          "aria-label",
+          `Action ids for ${game.name} (comma-separated)`
+        )
+        actionsInput.placeholder = "action ids, comma-separated (e.g. windows.game_mode)"
+        panel.appendChild(field("Profile actions", actionsInput))
+        const row = el("div", "actions-row")
+        row.appendChild(
+          button(
+            "Save profile",
+            async () => {
+              status.textContent = `Saving profile for ${game.game_key}…`
+              try {
+                const actionIds = actionsInput.value
+                  .split(",")
+                  .map((s) => s.trim())
+                  .filter(Boolean)
+                await invoke("profiles_save", {
+                  request: {
+                    game_key: game.game_key,
+                    name: game.name,
+                    action_ids: actionIds,
+                  },
+                })
+                status.textContent = `Saved profile for ${game.name}.`
+                await refresh()
+              } catch (error) {
+                status.textContent = `Save failed: ${error}`
+              }
+            },
+            { ariaLabel: `Save profile for ${game.name}`, className: "btn btn-secondary" }
+          )
+        )
+        row.appendChild(
+          button(
+            "Apply on start",
+            async () => {
+              status.textContent = `Applying profile for ${game.game_key}…`
+              try {
+                const outcome = await invoke("profiles_apply", {
+                  request: {
+                    game_key: game.game_key,
+                    labeled_mock: false,
+                  },
+                })
+                if (outcome.status === "applied") {
+                  status.textContent = `Applied ${outcome.name}: ${outcome.action_ids.join(", ")}`
+                } else {
+                  status.textContent = `Apply failed: ${outcome.detail}`
+                }
+                await refresh()
+              } catch (error) {
+                status.textContent = `Apply failed: ${error}`
+              }
+            },
+            { ariaLabel: `Apply profile for ${game.name} on game start` }
+          )
+        )
+        panel.appendChild(row)
+        results.appendChild(panel)
+      }
+      status.textContent = `${profilesState.games.length} game(s), ${profilesState.profiles.length} profile(s).`
+    } catch (error) {
+      status.textContent = `Profiles failed: ${error}`
+    }
+  }
+
+  root.appendChild(
+    button("Refresh games and profiles", refresh, {
+      ariaLabel: "Refresh detected games and profiles",
+    })
+  )
+  root.appendChild(status)
+  root.appendChild(results)
+  await refresh()
+}
+
 const renderChangelog = async (root) => {
   root.appendChild(
     el(
@@ -748,12 +933,14 @@ const renderRoute = async (routes, info) => {
     await renderBenchmark(body)
   } else if (activeId === "actions") {
     await renderActions(body)
+  } else if (activeId === "profiles") {
+    await renderProfiles(body)
   } else if (activeId === "changelog") {
     await renderChangelog(body)
   } else if (activeId === "restore-all") {
     await renderRestoreAll(body)
   } else {
-    renderPlaceholder(body, activeId)
+    body.appendChild(el("p", "lede", "This shell route is registered."))
   }
   document.querySelector("#meta").textContent =
     `Unprivileged shell v${info.app_version} (core ${info.core_version}). No elevation at startup.`
