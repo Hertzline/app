@@ -8,15 +8,17 @@ Unprivileged by default. Elevation is requested per action later, never for the 
 
 | Path | Role |
 |---|---|
-| `crates/hertzline-app` | Profile lifecycle, shell routes, measure + benchmark hosts |
+| `crates/hertzline-app` | Profile lifecycle, shell, measure, benchmark, actions hosts |
 | `src-tauri` | Tauri 2 binary (`hertzline`) |
 | `ui` | Static shell UI (hash routes) |
 
-## Shell routes (HZ-029 / HZ-030)
+## Shell routes (HZ-029 / HZ-030 / HZ-031)
 
 `#/measure` · `#/benchmark` · `#/actions` · `#/profiles` · `#/changelog` · `#/restore-all`
 
 Measure runs frame probe + hardware/disk/network collectors and exports CSV/JSON with identical fields. Benchmark uses warm-up, fixed duration, >=3 passes, noise-band verdict, and offers revert on "no measurable effect". No "+X FPS" claim without a local before/after result.
+
+Actions lists per-OS AC-4.x entries with AC-8.1 explanations and AC-8.2 local-measurement notes, elevation prompts, and macOS honesty (AC-4.23). Change log shows time/action/before/after/restore status (AC-7.5). Restore all reverts outstanding changes (AC-7.2).
 
 ## Versions (verified 2026-11-14)
 

@@ -1,14 +1,8 @@
 const { invoke } = window.__TAURI__.core
 
 const PLACEHOLDER = {
-  actions:
-    "Browse optimization actions with apply, restore and verify. Explanations and elevation prompts land in the actions UI task.",
   profiles:
     "Detect games from documented paths and apply profiles on start. Profile editing UI lands in the profiles task.",
-  changelog:
-    "Review time, action, before/after and restore status from the local change log.",
-  "restore-all":
-    "Revert every outstanding Hertzline change in one step. Uses the restore-all path from the rollback framework.",
 }
 
 let shellRoutes = []
@@ -456,6 +450,287 @@ const renderPlaceholder = (root, id) => {
   root.appendChild(el("p", "lede", PLACEHOLDER[id] || "This shell route is registered."))
 }
 
+const renderExplanation = (parent, explanation) => {
+  const dl = el("dl", "explanation")
+  const rows = [
+    ["What", explanation.what],
+    ["Expected effect", explanation.expected_effect],
+    ["Risk", explanation.risk],
+    ["How to undo", explanation.how_to_undo],
+    ["Local measurement", explanation.local_measurement],
+  ]
+  for (const [label, value] of rows) {
+    dl.appendChild(el("dt", null, label))
+    dl.appendChild(el("dd", null, value))
+  }
+  parent.appendChild(dl)
+}
+
+const renderActions = async (root) => {
+  const catalog = await invoke("actions_catalog")
+  root.appendChild(
+    el(
+      "p",
+      "lede",
+      `Optimization actions for this host (${catalog.host_os}). Each action shows what it does, risk, and how to undo. Elevation is requested per action only.`
+    )
+  )
+  root.appendChild(el("p", "note", catalog.local_measurement_note))
+
+  if (catalog.macos_honesty) {
+    const honesty = el("div", "panel honesty")
+    honesty.appendChild(el("h2", null, "macOS honesty"))
+    honesty.appendChild(el("p", null, catalog.macos_honesty.banner))
+    if (catalog.host_os === "macos") {
+      const list = el("ul", "cap-list")
+      for (const cap of catalog.macos_honesty.capabilities.filter((c) => c.kind === "action")) {
+        const item = el(
+          "li",
+          null,
+          `${cap.id} [${cap.level}] toggle=${cap.exposes_toggle ? "yes" : "no"} — ${cap.summary}`
+        )
+        list.appendChild(item)
+      }
+      honesty.appendChild(list)
+    }
+    root.appendChild(honesty)
+  }
+
+  const status = el("p", "status", "")
+  status.setAttribute("role", "status")
+  const hostActions = catalog.actions.filter((a) => a.host_status === "available")
+  const otherActions = catalog.actions.filter((a) => a.host_status !== "available")
+
+  const renderCard = (action) => {
+    const panel = el("div", "panel action-card")
+    panel.appendChild(el("h2", null, action.title))
+    panel.appendChild(
+      el(
+        "p",
+        "muted",
+        `${action.id} · ${action.os} · ${action.ac_refs.join(", ")} · ${action.kind}${
+          action.requires_elevation ? " · elevation required" : ""
+        }`
+      )
+    )
+    if (action.current_state) {
+      panel.appendChild(el("p", null, `Current: ${action.current_state}`))
+    }
+    renderExplanation(panel, action.explanation)
+
+    if (action.host_status !== "available") {
+      panel.appendChild(el("p", "note", `Not available on this host (${action.host_status}).`))
+      return panel
+    }
+
+    const input = el("input")
+    input.type = "text"
+    input.setAttribute("aria-label", action.input_hint || `Input for ${action.title}`)
+    input.placeholder = action.input_hint || "optional input"
+    input.autocomplete = "off"
+    if (action.kind === "needs_input" || action.kind === "toggle" || action.kind === "destructive") {
+      if (action.input_hint) {
+        panel.appendChild(field(action.input_hint, input))
+      }
+    }
+
+    const elevCheck = el("input")
+    elevCheck.type = "checkbox"
+    elevCheck.id = `elev-${action.id}`
+    elevCheck.setAttribute("aria-label", `Confirm elevation for ${action.title}`)
+    const elevLabel = el("label", "check")
+    elevLabel.appendChild(elevCheck)
+    elevLabel.appendChild(
+      document.createTextNode(
+        action.elevation_reason ||
+          "I confirm a per-action elevation prompt (not whole-app elevation)."
+      )
+    )
+    if (action.requires_elevation) {
+      panel.appendChild(elevLabel)
+    }
+
+    const destCheck = el("input")
+    destCheck.type = "checkbox"
+    destCheck.setAttribute("aria-label", `Confirm destructive cleanup for ${action.title}`)
+    const destLabel = el("label", "check")
+    destLabel.appendChild(destCheck)
+    destLabel.appendChild(
+      document.createTextNode("I confirm cleanup after reviewing the size preview.")
+    )
+    if (action.kind === "destructive") {
+      panel.appendChild(destLabel)
+    }
+
+    const row = el("div", "actions-row")
+    if (action.exposes_switch || action.kind === "report" || action.kind === "destructive") {
+      row.appendChild(
+        button(
+          action.kind === "report" ? "Refresh report" : "Apply",
+          async () => {
+            status.textContent = `Applying ${action.id}…`
+            try {
+              const outcome = await invoke("actions_apply", {
+                request: {
+                  id: action.id,
+                  confirm_elevation: !!elevCheck.checked,
+                  confirm_destructive: !!destCheck.checked,
+                  input: input.value.trim() || null,
+                },
+              })
+              if (outcome.status === "elevation_required") {
+                status.textContent = outcome.message
+              } else if (outcome.status === "confirm_destructive") {
+                status.textContent = outcome.message
+              } else if (outcome.status === "applied") {
+                status.textContent = `Applied ${outcome.action}: ${outcome.before} → ${outcome.after} (entry ${outcome.entry_id})`
+              } else {
+                status.textContent = `Failed ${outcome.action}: ${outcome.detail}`
+              }
+            } catch (error) {
+              status.textContent = `Apply failed: ${error}`
+            }
+          },
+          { ariaLabel: `Apply ${action.title}` }
+        )
+      )
+    }
+    panel.appendChild(row)
+    return panel
+  }
+
+  root.appendChild(el("h2", null, "Available on this host"))
+  if (hostActions.length === 0) {
+    root.appendChild(el("p", "muted", "No host actions registered for this OS."))
+  }
+  for (const action of hostActions) {
+    root.appendChild(renderCard(action))
+  }
+
+  const other = el("details", "other-os")
+  other.appendChild(el("summary", null, `Other OS actions (${otherActions.length})`))
+  for (const action of otherActions) {
+    other.appendChild(renderCard(action))
+  }
+  root.appendChild(other)
+  root.appendChild(status)
+}
+
+const renderChangelog = async (root) => {
+  root.appendChild(
+    el(
+      "p",
+      "lede",
+      "Local change log: time, action, before/after, and restore status. Nothing leaves this machine."
+    )
+  )
+  const status = el("p", "status", "")
+  status.setAttribute("role", "status")
+  const results = el("div", "results")
+
+  const refresh = async () => {
+    results.replaceChildren()
+    try {
+      const rows = await invoke("actions_change_log")
+      if (!rows.length) {
+        results.appendChild(el("p", "muted", "No changes recorded yet."))
+        status.textContent = "Change log empty."
+        return
+      }
+      const table = el("table", "metrics")
+      table.setAttribute("aria-label", "Change log")
+      const head = document.createElement("thead")
+      const hr = document.createElement("tr")
+      for (const label of ["ID", "Time", "Action", "Before", "After", "Status", ""]) {
+        hr.appendChild(el("th", null, label))
+      }
+      head.appendChild(hr)
+      table.appendChild(head)
+      const body = document.createElement("tbody")
+      for (const row of rows) {
+        const tr = document.createElement("tr")
+        tr.appendChild(el("td", null, String(row.id)))
+        tr.appendChild(el("td", null, String(row.time_unix_ms)))
+        tr.appendChild(el("td", null, row.action))
+        tr.appendChild(el("td", "break", row.before))
+        tr.appendChild(el("td", "break", row.after))
+        tr.appendChild(el("td", null, row.restore_status))
+        const cell = document.createElement("td")
+        if (row.restore_status === "outstanding") {
+          cell.appendChild(
+            button(
+              "Restore",
+              async () => {
+                status.textContent = `Restoring entry ${row.id}…`
+                try {
+                  const updated = await invoke("actions_restore_entry", { entryId: row.id })
+                  status.textContent = `Restored entry ${updated.id} (${updated.restore_status}).`
+                  await refresh()
+                } catch (error) {
+                  status.textContent = `Restore failed: ${error}`
+                }
+              },
+              { ariaLabel: `Restore change ${row.id}`, className: "btn btn-secondary" }
+            )
+          )
+        }
+        tr.appendChild(cell)
+        body.appendChild(tr)
+      }
+      table.appendChild(body)
+      results.appendChild(table)
+      status.textContent = `${rows.length} change log row(s).`
+    } catch (error) {
+      status.textContent = `Change log failed: ${error}`
+    }
+  }
+
+  root.appendChild(
+    button("Refresh change log", refresh, { ariaLabel: "Refresh change log" })
+  )
+  root.appendChild(status)
+  root.appendChild(results)
+  await refresh()
+}
+
+const renderRestoreAll = async (root) => {
+  root.appendChild(
+    el(
+      "p",
+      "lede",
+      "One-click restore all reverts every outstanding Hertzline change. This path also runs on crash recovery and uninstall without the UI."
+    )
+  )
+  const status = el("p", "status", "")
+  status.setAttribute("role", "status")
+  const results = el("div", "results")
+
+  const handleRestore = async () => {
+    status.textContent = "Running restore all…"
+    results.replaceChildren()
+    try {
+      const report = await invoke("actions_restore_all")
+      status.textContent = `Restore all ${report.status} (trigger ${report.trigger}; ok=${report.ok}; requires_ui=${report.requires_ui}).`
+      const list = el("ul", "cap-list")
+      for (const item of report.items) {
+        list.appendChild(el("li", null, item))
+      }
+      results.appendChild(list)
+      results.appendChild(el("p", "note", `Store: ${report.store_path}`))
+    } catch (error) {
+      status.textContent = `Restore all failed: ${error}`
+    }
+  }
+
+  root.appendChild(
+    button("Restore all outstanding changes", handleRestore, {
+      ariaLabel: "Restore all outstanding Hertzline changes",
+    })
+  )
+  root.appendChild(status)
+  root.appendChild(results)
+}
+
 const renderRoute = async (routes, info) => {
   const id = parseRouteId()
   const route = routes.find((item) => item.id === id) || routes[0]
@@ -471,6 +746,12 @@ const renderRoute = async (routes, info) => {
     renderMeasure(body)
   } else if (activeId === "benchmark") {
     await renderBenchmark(body)
+  } else if (activeId === "actions") {
+    await renderActions(body)
+  } else if (activeId === "changelog") {
+    await renderChangelog(body)
+  } else if (activeId === "restore-all") {
+    await renderRestoreAll(body)
   } else {
     renderPlaceholder(body, activeId)
   }

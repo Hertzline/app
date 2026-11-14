@@ -1,10 +1,15 @@
-//! Hertzline Tauri shell (HZ-029 / HZ-030).
+//! Hertzline Tauri shell (HZ-029 / HZ-030 / HZ-031).
 //!
-//! Unprivileged by default. Elevation is requested per action later, never at startup.
+//! Unprivileged by default. Elevation is requested per action, never at startup.
 
 // MSVC emits .lib/.exp notes when linking cdylib; not actionable here.
 #![allow(linker_messages)]
 
+use hertzline_app::actions_ui::{
+    apply_action, apply_labeled_mock, list_action_catalog, list_change_log, macos_honesty_banner,
+    restore_all_explicit, restore_change_entry, ActionCatalogDto, ApplyOutcomeDto, ApplyRequest,
+    ChangeLogRowDto, RestoreAllDto,
+};
 use hertzline_app::benchmark_ui::{
     compare_benchmarks, no_local_benchmark_explanation, run_benchmark_from_windows,
     run_labeled_mock_pair, BenchConfigDto, BenchResultDto, VerdictDto,
@@ -71,70 +76,150 @@ fn benchmark_no_local_note() -> String {
     no_local_benchmark_explanation()
 }
 
+#[tauri::command]
+fn actions_catalog() -> ActionCatalogDto {
+    list_action_catalog()
+}
+
+#[tauri::command]
+fn actions_apply(request: ApplyRequest) -> ApplyOutcomeDto {
+    apply_action(request)
+}
+
+#[tauri::command]
+fn actions_apply_labeled_mock() -> Result<ApplyOutcomeDto, String> {
+    apply_labeled_mock()
+}
+
+#[tauri::command]
+fn actions_change_log() -> Result<Vec<ChangeLogRowDto>, String> {
+    list_change_log()
+}
+
+#[tauri::command]
+fn actions_restore_entry(entry_id: u64) -> Result<ChangeLogRowDto, String> {
+    restore_change_entry(entry_id)
+}
+
+#[tauri::command]
+fn actions_restore_all() -> Result<RestoreAllDto, String> {
+    restore_all_explicit()
+}
+
+#[tauri::command]
+fn actions_macos_honesty() -> String {
+    macos_honesty_banner()
+}
+
 fn run_smoke_and_exit() -> ! {
     let info = get_shell_info();
     if !info.unprivileged {
-        eprintln!("hz030 smoke failed: shell must be unprivileged");
+        eprintln!("hz031 smoke failed: shell must be unprivileged");
         std::process::exit(1);
     }
     let expected = required_route_ids();
     let got: Vec<&str> = info.routes.iter().map(|r| r.id.as_str()).collect();
     if got != expected {
-        eprintln!("hz030 smoke failed: routes={got:?} expected={expected:?}");
+        eprintln!("hz031 smoke failed: routes={got:?} expected={expected:?}");
         std::process::exit(1);
     }
     for id in expected {
         if open_route(id.to_string()).is_err() {
-            eprintln!("hz030 smoke failed: open_route({id})");
+            eprintln!("hz031 smoke failed: open_route({id})");
             std::process::exit(1);
         }
     }
-    let core = core_ping("hz030-smoke".into());
+    let core = core_ping("hz031-smoke".into());
     if !core.ok {
-        eprintln!("hz030 smoke failed: core_ping={core:?}");
+        eprintln!("hz031 smoke failed: core_ping={core:?}");
         std::process::exit(1);
     }
 
-    let measure = measure_run(MeasureRequest {
-        target_process: Some("hz030-smoke".into()),
-        network_host: None,
-        presentmon_csv: None,
-        mangohud_log: None,
-        notes: Some("smoke".into()),
+    let catalog = actions_catalog();
+    if catalog.actions.len() < 20 {
+        eprintln!(
+            "hz031 smoke failed: catalog too small {}",
+            catalog.actions.len()
+        );
+        std::process::exit(1);
+    }
+    let honesty = actions_macos_honesty();
+    if !honesty.contains("far fewer tunables") {
+        eprintln!("hz031 smoke failed: macos honesty banner");
+        std::process::exit(1);
+    }
+    let elev = actions_apply(ApplyRequest {
+        id: "windows.hags".into(),
+        confirm_elevation: false,
+        confirm_destructive: false,
+        input: None,
     });
-    let measure = match measure {
-        Ok(m) => m,
-        Err(e) => {
-            eprintln!("hz030 smoke failed: measure_run={e}");
+    match elev {
+        ApplyOutcomeDto::ElevationRequired { .. } => {}
+        other => {
+            eprintln!("hz031 smoke failed: expected elevation prompt, got {other:?}");
             std::process::exit(1);
         }
-    };
-    if !measure.csv.contains("avg_fps") || !measure.json.contains("avg_fps") {
-        eprintln!("hz030 smoke failed: export missing avg_fps");
-        std::process::exit(1);
     }
 
-    let (_b, _a, verdict) = match benchmark_run_labeled_mock(16.0, 16.0) {
+    // Isolated store for labeled mock apply + restore-all.
+    let dir = std::env::temp_dir().join(format!(
+        "hertzline-app-hz031-smoke-{}-{}",
+        std::process::id(),
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|d| d.as_millis())
+            .unwrap_or(0)
+    ));
+    let _ = std::fs::create_dir_all(&dir);
+    let store = dir.join("snapshots.json");
+    std::env::set_var(hertzline_core::paths::SNAPSHOT_STORE_ENV, store.as_os_str());
+
+    let applied = match actions_apply_labeled_mock() {
         Ok(v) => v,
         Err(e) => {
-            eprintln!("hz030 smoke failed: labeled_mock={e}");
+            eprintln!("hz031 smoke failed: labeled_mock={e}");
             std::process::exit(1);
         }
     };
-    if verdict.message != "no measurable effect" || !verdict.offer_revert {
-        eprintln!("hz030 smoke failed: verdict={verdict:?}");
+    match &applied {
+        ApplyOutcomeDto::Applied { action, .. } if action == "mock_toggle" => {}
+        other => {
+            eprintln!("hz031 smoke failed: mock apply={other:?}");
+            std::process::exit(1);
+        }
+    }
+    let log = match actions_change_log() {
+        Ok(rows) => rows,
+        Err(e) => {
+            eprintln!("hz031 smoke failed: change_log={e}");
+            std::process::exit(1);
+        }
+    };
+    if log.is_empty() || log[0].restore_status != "outstanding" {
+        eprintln!("hz031 smoke failed: change_log={log:?}");
         std::process::exit(1);
     }
-    let note = benchmark_no_local_note();
-    if note.is_empty() {
-        eprintln!("hz030 smoke failed: empty AC-8.2 note");
+    let restore = match actions_restore_all() {
+        Ok(r) => r,
+        Err(e) => {
+            eprintln!("hz031 smoke failed: restore_all={e}");
+            std::process::exit(1);
+        }
+    };
+    if !restore.ok || restore.requires_ui {
+        eprintln!("hz031 smoke failed: restore={restore:?}");
         std::process::exit(1);
     }
+
+    let _ = std::fs::remove_dir_all(&dir);
 
     let route_list = expected.join(",");
     println!(
-        "hz030_smoke_ok unprivileged=true routes={route_list} export=csv+json verdict={} app={} core={}",
-        verdict.message, info.app_version, info.core_version
+        "hz031_smoke_ok unprivileged=true routes={route_list} catalog={} elev=prompt restore_all=ok app={} core={}",
+        catalog.actions.len(),
+        info.app_version,
+        info.core_version
     );
     std::process::exit(0);
 }
@@ -156,7 +241,14 @@ pub fn run() {
             benchmark_run_windows,
             benchmark_run_labeled_mock,
             benchmark_compare,
-            benchmark_no_local_note
+            benchmark_no_local_note,
+            actions_catalog,
+            actions_apply,
+            actions_apply_labeled_mock,
+            actions_change_log,
+            actions_restore_entry,
+            actions_restore_all,
+            actions_macos_honesty
         ])
         .run(tauri::generate_context!())
         .expect("error while running Hertzline");
