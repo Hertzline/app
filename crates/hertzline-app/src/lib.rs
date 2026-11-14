@@ -1,11 +1,12 @@
 //! Hertzline desktop host library.
 //!
 //! Profile lifecycle (HZ-028), shell routes (HZ-029), measure + benchmark UI (HZ-030),
-//! actions + explanations + restore UI (HZ-031), profiles UI (HZ-032).
+//! actions + explanations + restore UI (HZ-031), profiles UI (HZ-032), everyday mode (HZ-033).
 //! The Tauri binary lives in `src-tauri` and stays unprivileged.
 
 pub mod actions_ui;
 pub mod benchmark_ui;
+pub mod everyday_ui;
 pub mod measure;
 pub mod profile_host;
 pub mod profiles_ui;
@@ -24,6 +25,11 @@ pub use actions_ui::{
 pub use benchmark_ui::{
     compare_benchmarks, no_local_benchmark_explanation, run_benchmark_from_windows,
     run_labeled_mock_pair, BenchConfigDto, BenchResultDto, VerdictDto,
+};
+pub use everyday_ui::{
+    apply_cleanup, apply_power_preset, everyday_overview, kill_hog_guard, restore_power_preset,
+    weekly_health_report, ApplyPresetRequest, CleanupApplyRequest, CleanupOutcomeDto,
+    EverydayOverviewDto, PresetOutcomeDto, WeeklyReportDto,
 };
 pub use measure::{
     explanation_with_evidence, run_measurement, MeasureRequest, MeasureResult,

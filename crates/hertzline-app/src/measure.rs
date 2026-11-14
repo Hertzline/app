@@ -104,6 +104,24 @@ pub fn run_measurement(request: MeasureRequest) -> Result<MeasureResult, String>
     let csv = export_csv(&session);
     let json = export_json(&session).map_err(|e| e.to_string())?;
 
+    // Archive a compact summary for everyday weekly health (AC-5.6). Failure is non-fatal.
+    let frame_status = match probe.status {
+        ProbeStatus::Available => "available",
+        ProbeStatus::Unavailable => "unavailable",
+        ProbeStatus::NotPossible => "not_possible",
+    };
+    let _ = hertzline_core::everyday::append_measurement_summary(
+        hertzline_core::everyday::MeasurementSummary {
+            session_id: session.meta.session_id.clone(),
+            started_at_unix_ms: session.meta.started_at_unix_ms,
+            ended_at_unix_ms: session.meta.ended_at_unix_ms,
+            target_process: session.meta.target_process.clone(),
+            os: session.meta.os.clone(),
+            frame_status: frame_status.into(),
+            notes: session.meta.notes.clone(),
+        },
+    );
+
     Ok(MeasureResult {
         session,
         frame_probe: probe,

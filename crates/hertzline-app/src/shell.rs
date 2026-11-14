@@ -1,6 +1,6 @@
-//! Desktop shell routes (HZ-029).
+//! Desktop shell routes (HZ-029 / HZ-033).
 //!
-//! Navigation targets only. Measure/benchmark/action UIs arrive in later tasks.
+//! Navigation targets only. Feature UIs live in sibling modules.
 
 use serde::{Deserialize, Serialize};
 
@@ -12,17 +12,19 @@ pub enum AppRoute {
     Benchmark,
     Actions,
     Profiles,
+    Everyday,
     Changelog,
     RestoreAll,
 }
 
 impl AppRoute {
     /// Stable order used by nav and smoke checks.
-    pub const ALL: [AppRoute; 6] = [
+    pub const ALL: [AppRoute; 7] = [
         Self::Measure,
         Self::Benchmark,
         Self::Actions,
         Self::Profiles,
+        Self::Everyday,
         Self::Changelog,
         Self::RestoreAll,
     ];
@@ -33,6 +35,7 @@ impl AppRoute {
             Self::Benchmark => "benchmark",
             Self::Actions => "actions",
             Self::Profiles => "profiles",
+            Self::Everyday => "everyday",
             Self::Changelog => "changelog",
             Self::RestoreAll => "restore-all",
         }
@@ -44,6 +47,7 @@ impl AppRoute {
             Self::Benchmark => "Benchmark",
             Self::Actions => "Actions",
             Self::Profiles => "Profiles",
+            Self::Everyday => "Everyday",
             Self::Changelog => "Change log",
             Self::RestoreAll => "Restore all",
         }
@@ -98,12 +102,13 @@ pub fn shell_info(app_version: &str, core_version: &str) -> ShellInfo {
 }
 
 /// Assert every required route is present (smoke / tests).
-pub fn required_route_ids() -> [&'static str; 6] {
+pub fn required_route_ids() -> [&'static str; 7] {
     [
         "measure",
         "benchmark",
         "actions",
         "profiles",
+        "everyday",
         "changelog",
         "restore-all",
     ]
@@ -121,14 +126,14 @@ mod tests {
             assert_eq!(route.hash_path(), format!("#/{id}"));
             assert!(!route.title().is_empty());
         }
-        assert_eq!(AppRoute::ALL.len(), 6);
+        assert_eq!(AppRoute::ALL.len(), 7);
     }
 
     #[test]
-    fn shell_info_is_unprivileged_with_six_routes() {
+    fn shell_info_is_unprivileged_with_seven_routes() {
         let info = shell_info("0.0.0", "0.0.0");
         assert!(info.unprivileged);
-        assert_eq!(info.routes.len(), 6);
+        assert_eq!(info.routes.len(), 7);
         let ids: Vec<&str> = info.routes.iter().map(|r| r.id.as_str()).collect();
         assert_eq!(ids, required_route_ids());
     }

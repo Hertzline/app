@@ -916,6 +916,192 @@ const renderRestoreAll = async (root) => {
   root.appendChild(results)
 }
 
+const formatBytes = (value) => {
+  if (value === undefined || value === null) {
+    return "n/a"
+  }
+  if (value < 1024) {
+    return `${value} B`
+  }
+  if (value < 1024 * 1024) {
+    return `${(value / 1024).toFixed(1)} KiB`
+  }
+  return `${(value / (1024 * 1024)).toFixed(1)} MiB`
+}
+
+const renderEveryday = async (root) => {
+  root.appendChild(
+    el(
+      "p",
+      "lede",
+      "Everyday mode reviews startup impact, resource hogs, power presets, disk cleanup, thermals, and a weekly health report. No silent kills. No invented FPS."
+    )
+  )
+  const status = el("p", "status", "Loading everyday overview...")
+  const results = el("div", "results")
+  root.appendChild(status)
+  root.appendChild(results)
+
+  const refresh = async () => {
+    status.textContent = "Refreshing..."
+    results.replaceChildren()
+    try {
+      const overview = await invoke("everyday_get_overview")
+      results.appendChild(el("p", "note", overview.local_measurement_note))
+
+      results.appendChild(el("h2", null, "Startup impact"))
+      results.appendChild(el("p", "muted", overview.startup.note))
+      if (!overview.startup.rows.length) {
+        results.appendChild(el("p", "muted", "No startup entries listed on this host."))
+      } else {
+        const list = el("ul", "list")
+        for (const row of overview.startup.rows) {
+          list.appendChild(
+            el(
+              "li",
+              null,
+              `${row.name} · ${row.enabled ? "enabled" : "disabled"} · ${row.impact_summary}${row.reversible ? " · reversible" : ""}`
+            )
+          )
+        }
+        results.appendChild(list)
+      }
+
+      results.appendChild(el("h2", null, "Background resource hogs"))
+      results.appendChild(el("p", "muted", overview.hogs.note))
+      const hogList = el("ul", "list")
+      for (const hog of overview.hogs.hogs) {
+        hogList.appendChild(
+          el(
+            "li",
+            null,
+            `${hog.name} (pid ${hog.pid}) · CPU ${hog.cpu_percent.toFixed(1)}% · RAM ${formatBytes(hog.ram_bytes)} · disk r/w ${formatBytes(hog.disk_read_bytes)} / ${formatBytes(hog.disk_write_bytes)}`
+          )
+        )
+      }
+      results.appendChild(hogList)
+      results.appendChild(
+        button(
+          "Refuse silent kill (guard)",
+          async () => {
+            try {
+              await invoke("everyday_kill_guard", { confirm: false })
+              status.textContent = "Kill guard unexpectedly allowed a kill."
+            } catch (error) {
+              status.textContent = `Kill refused as required: ${error}`
+            }
+          },
+          { ariaLabel: "Demonstrate that everyday mode refuses process kills without confirm" }
+        )
+      )
+
+      results.appendChild(el("h2", null, "Power preset"))
+      results.appendChild(el("p", "muted", overview.power.message))
+      results.appendChild(
+        el(
+          "p",
+          "muted",
+          `${overview.power.explanation.what} Risk: ${overview.power.explanation.risk}`
+        )
+      )
+      if (overview.power.available) {
+        results.appendChild(
+          el(
+            "p",
+            null,
+            `Current: ${overview.power.preset || "unknown"} (${overview.power.backend || "n/a"})`
+          )
+        )
+        const presets = [
+          ["battery_saver", "Battery saver"],
+          ["balanced", "Balanced"],
+          ["performance", "Performance"],
+        ]
+        for (const [id, label] of presets) {
+          results.appendChild(
+            button(
+              `Apply ${label}`,
+              async () => {
+                const outcome = await invoke("everyday_apply_preset", { request: { preset: id } })
+                if (outcome.status === "applied") {
+                  status.textContent = `Preset applied (entry ${outcome.entry_id}).`
+                  await refresh()
+                } else {
+                  status.textContent = `Preset failed: ${outcome.detail}`
+                }
+              },
+              { ariaLabel: `Apply ${label} power preset` }
+            )
+          )
+        }
+      }
+
+      results.appendChild(el("h2", null, "Disk cleanup preview"))
+      results.appendChild(el("p", "muted", overview.cleanup.note))
+      results.appendChild(el("p", null, `Total preview: ${formatBytes(overview.cleanup.total_bytes)}`))
+      const cleanList = el("ul", "list")
+      for (const entry of overview.cleanup.entries) {
+        cleanList.appendChild(
+          el("li", null, `${entry.label}: ${formatBytes(entry.bytes)} · ${entry.path}`)
+        )
+      }
+      results.appendChild(cleanList)
+      results.appendChild(
+        button(
+          "Delete previewed files (confirm)",
+          async () => {
+            const outcome = await invoke("everyday_apply_cleanup", {
+              request: { confirm: true },
+            })
+            if (outcome.status === "applied") {
+              status.textContent = `Cleanup removed ${formatBytes(outcome.bytes_removed)}.`
+              await refresh()
+            } else if (outcome.status === "preview_required") {
+              status.textContent = outcome.message
+            } else {
+              status.textContent = `Cleanup failed: ${outcome.detail}`
+            }
+          },
+          { ariaLabel: "Confirm and delete previewed cleanup paths" }
+        )
+      )
+
+      results.appendChild(el("h2", null, "Thermal warnings"))
+      results.appendChild(el("p", "muted", overview.thermal.note))
+      results.appendChild(
+        el(
+          "p",
+          null,
+          `Level: ${overview.thermal.level}. Threshold: ${overview.thermal.high_temp_celsius} C. CPU ${overview.thermal.cpu_temp_celsius ?? "unavailable"} / GPU ${overview.thermal.gpu_temp_celsius ?? "unavailable"}. Throttle: ${overview.thermal.throttling ?? "unavailable"}`
+        )
+      )
+      for (const warning of overview.thermal.warnings) {
+        results.appendChild(el("p", "note", `${warning.source}: ${warning.message}`))
+      }
+
+      results.appendChild(el("h2", null, "Weekly health report"))
+      results.appendChild(el("p", "muted", overview.weekly.note))
+      results.appendChild(
+        el(
+          "p",
+          null,
+          `Window ${overview.weekly.window_start_unix_ms}--${overview.weekly.window_end_unix_ms}. Measurements: ${overview.weekly.measurements.length}. Applied: ${overview.weekly.applied_actions.length}. Rollbacks: ${overview.weekly.rollbacks.length}.`
+        )
+      )
+      status.textContent = "Everyday overview ready."
+    } catch (error) {
+      status.textContent = `Everyday overview failed: ${error}`
+    }
+  }
+
+  root.appendChild(
+    button("Refresh everyday overview", refresh, {
+      ariaLabel: "Refresh everyday mode overview",
+    })
+  )
+  await refresh()
+}
+
 const renderRoute = async (routes, info) => {
   const id = parseRouteId()
   const route = routes.find((item) => item.id === id) || routes[0]
@@ -935,6 +1121,8 @@ const renderRoute = async (routes, info) => {
     await renderActions(body)
   } else if (activeId === "profiles") {
     await renderProfiles(body)
+  } else if (activeId === "everyday") {
+    await renderEveryday(body)
   } else if (activeId === "changelog") {
     await renderChangelog(body)
   } else if (activeId === "restore-all") {

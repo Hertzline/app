@@ -1,4 +1,4 @@
-//! Hertzline Tauri shell (HZ-029 / HZ-030 / HZ-031 / HZ-032).
+//! Hertzline Tauri shell (HZ-029--HZ-033).
 //!
 //! Unprivileged by default. Elevation is requested per action, never at startup.
 
@@ -13,6 +13,11 @@ use hertzline_app::actions_ui::{
 use hertzline_app::benchmark_ui::{
     compare_benchmarks, no_local_benchmark_explanation, run_benchmark_from_windows,
     run_labeled_mock_pair, BenchConfigDto, BenchResultDto, VerdictDto,
+};
+use hertzline_app::everyday_ui::{
+    apply_cleanup, apply_power_preset, everyday_overview, kill_hog_guard, restore_power_preset,
+    weekly_health_report, ApplyPresetRequest, CleanupApplyRequest, CleanupOutcomeDto,
+    EverydayOverviewDto, PresetOutcomeDto, WeeklyReportDto,
 };
 use hertzline_app::measure::{run_measurement, MeasureRequest, MeasureResult};
 use hertzline_app::profiles_ui::{
@@ -153,115 +158,129 @@ fn profiles_apply_restore_labeled_mock(
     apply_restore_labeled_mock()
 }
 
+#[tauri::command]
+fn everyday_get_overview() -> Result<EverydayOverviewDto, String> {
+    everyday_overview()
+}
+
+#[tauri::command]
+fn everyday_apply_preset(request: ApplyPresetRequest) -> PresetOutcomeDto {
+    apply_power_preset(request)
+}
+
+#[tauri::command]
+fn everyday_restore_preset(
+    entry_id: u64,
+) -> Result<hertzline_app::everyday_ui::ChangeRowDto, String> {
+    restore_power_preset(entry_id)
+}
+
+#[tauri::command]
+fn everyday_apply_cleanup(request: CleanupApplyRequest) -> CleanupOutcomeDto {
+    apply_cleanup(request)
+}
+
+#[tauri::command]
+fn everyday_kill_guard(confirm: bool) -> Result<(), String> {
+    kill_hog_guard(confirm)
+}
+
+#[tauri::command]
+fn everyday_weekly_report() -> Result<WeeklyReportDto, String> {
+    weekly_health_report()
+}
+
 fn run_smoke_and_exit() -> ! {
     let info = get_shell_info();
     if !info.unprivileged {
-        eprintln!("hz032 smoke failed: shell must be unprivileged");
+        eprintln!("hz033 smoke failed: shell must be unprivileged");
         std::process::exit(1);
     }
     let expected = required_route_ids();
     let got: Vec<&str> = info.routes.iter().map(|r| r.id.as_str()).collect();
     if got != expected {
-        eprintln!("hz032 smoke failed: routes={got:?} expected={expected:?}");
+        eprintln!("hz033 smoke failed: routes={got:?} expected={expected:?}");
         std::process::exit(1);
     }
     for id in expected {
         if open_route(id.to_string()).is_err() {
-            eprintln!("hz032 smoke failed: open_route({id})");
+            eprintln!("hz033 smoke failed: open_route({id})");
             std::process::exit(1);
         }
     }
-    let core = core_ping("hz032-smoke".into());
+    let core = core_ping("hz033-smoke".into());
     if !core.ok {
-        eprintln!("hz032 smoke failed: core_ping={core:?}");
-        std::process::exit(1);
-    }
-
-    let overview = match profiles_get_overview() {
-        Ok(v) => v,
-        Err(e) => {
-            eprintln!("hz032 smoke failed: overview={e}");
-            std::process::exit(1);
-        }
-    };
-    if !overview.note.contains("documented launcher paths") {
-        eprintln!("hz032 smoke failed: detection note missing");
+        eprintln!("hz033 smoke failed: core_ping={core:?}");
         std::process::exit(1);
     }
 
     let dir = std::env::temp_dir().join(format!(
-        "hertzline-app-hz032-smoke-manual-{}-{}",
+        "hertzline-app-hz033-smoke-{}-{}",
         std::process::id(),
         std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
             .map(|d| d.as_millis())
             .unwrap_or(0)
     ));
-    let game_dir = dir.join("SmokeGame");
-    let _ = std::fs::create_dir_all(&game_dir);
-    let library = dir.join("profiles.json");
+    let _ = std::fs::create_dir_all(&dir);
     let store = dir.join("snapshots.json");
-    let marker = dir.join("active.json");
-    std::env::set_var(hertzline_app::PROFILES_LIBRARY_ENV, library.as_os_str());
+    let archive = dir.join("archive.json");
     std::env::set_var(hertzline_core::paths::SNAPSHOT_STORE_ENV, store.as_os_str());
     std::env::set_var(
-        hertzline_core::paths::ACTIVE_PROFILE_ENV,
-        marker.as_os_str(),
+        hertzline_core::paths::MEASUREMENT_ARCHIVE_ENV,
+        archive.as_os_str(),
     );
 
-    let after_manual = match profiles_add_manual(AddManualPathRequest {
-        name: "Smoke Game".into(),
-        install_path: game_dir.display().to_string(),
-    }) {
+    let overview = match everyday_get_overview() {
         Ok(v) => v,
         Err(e) => {
-            eprintln!("hz032 smoke failed: manual={e}");
+            eprintln!("hz033 smoke failed: overview={e}");
             std::process::exit(1);
         }
     };
-    if !after_manual
-        .manual_paths
-        .iter()
-        .any(|m| m.name == "Smoke Game")
+    if overview
+        .hogs
+        .note
+        .to_ascii_lowercase()
+        .contains("never kill")
+        || overview.hogs.note.contains("never kills")
     {
-        eprintln!("hz032 smoke failed: manual path not listed");
+        // ok
+    } else {
+        eprintln!("hz033 smoke failed: hogs note missing no-kill promise");
         std::process::exit(1);
     }
-    if !after_manual.games.iter().any(|g| g.source == "manual") {
-        eprintln!("hz032 smoke failed: manual game not detected");
+    if kill_hog_guard(false).is_ok() || kill_hog_guard(true).is_ok() {
+        eprintln!("hz033 smoke failed: kill guard must refuse");
         std::process::exit(1);
     }
-
-    let (applied, restored) = match profiles_apply_restore_labeled_mock() {
-        Ok(v) => v,
-        Err(e) => {
-            eprintln!("hz032 smoke failed: labeled_mock={e}");
+    let preview = match apply_cleanup(CleanupApplyRequest { confirm: false }) {
+        CleanupOutcomeDto::PreviewRequired { .. } => "preview_ok",
+        other => {
+            eprintln!("hz033 smoke failed: cleanup without confirm={other:?}");
             std::process::exit(1);
         }
     };
-    match &applied {
-        ProfileApplyOutcomeDto::Applied { action_ids, .. }
-            if action_ids.iter().any(|id| id == "mock_toggle") => {}
-        other => {
-            eprintln!("hz032 smoke failed: apply={other:?}");
+    let weekly = match everyday_weekly_report() {
+        Ok(v) => v,
+        Err(e) => {
+            eprintln!("hz033 smoke failed: weekly={e}");
             std::process::exit(1);
         }
-    }
-    match &restored {
-        ProfileApplyOutcomeDto::Restored { .. } => {}
-        other => {
-            eprintln!("hz032 smoke failed: restore={other:?}");
-            std::process::exit(1);
-        }
+    };
+    if weekly.note.is_empty() {
+        eprintln!("hz033 smoke failed: weekly note empty");
+        std::process::exit(1);
     }
 
     let _ = std::fs::remove_dir_all(&dir);
 
     let route_list = expected.join(",");
     println!(
-        "hz032_smoke_ok unprivileged=true routes={route_list} manual=ok apply_restore=ok games={} profiles={} app={} core={}",
-        after_manual.games.len(),
-        after_manual.profiles.len(),
+        "hz033_smoke_ok unprivileged=true routes={route_list} cleanup={preview} thermal={} startup_rows={} hogs={} weekly_ok=1 app={} core={}",
+        overview.thermal.level,
+        overview.startup.rows.len(),
+        overview.hogs.hogs.len(),
         info.app_version,
         info.core_version
     );
@@ -301,7 +320,13 @@ pub fn run() {
             profiles_apply,
             profiles_restore,
             profiles_recover_crash,
-            profiles_apply_restore_labeled_mock
+            profiles_apply_restore_labeled_mock,
+            everyday_get_overview,
+            everyday_apply_preset,
+            everyday_restore_preset,
+            everyday_apply_cleanup,
+            everyday_kill_guard,
+            everyday_weekly_report
         ])
         .run(tauri::generate_context!())
         .expect("error while running Hertzline");
