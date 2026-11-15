@@ -105,6 +105,18 @@ pub fn shell_info(app_version: &str, core_version: &str) -> ShellInfo {
     }
 }
 
+/// HZ-055: desktop process must never start elevated.
+#[cfg(test)]
+mod hz055_tests {
+    use super::*;
+
+    #[test]
+    fn shell_is_always_unprivileged() {
+        let info = shell_info("0.0.0", "0.0.0");
+        assert!(info.unprivileged);
+    }
+}
+
 /// Assert every required route is present (smoke / tests).
 pub fn required_route_ids() -> [&'static str; 8] {
     [
