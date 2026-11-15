@@ -50,4 +50,4 @@ pub use profiles_ui::{
     ProfileApplyOutcomeDto, ProfileDto, ProfilesOverviewDto, SaveProfileRequest,
     PROFILES_LIBRARY_ENV,
 };
-pub use shell::{shell_info, AppRoute, RouteInfo, ShellInfo};
+pub use shell::{required_route_ids, shell_info, AppRoute, RouteInfo, ShellInfo};
