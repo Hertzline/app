@@ -1102,6 +1102,194 @@ const renderEveryday = async (root) => {
   await refresh()
 }
 
+const renderOverlay = async (root) => {
+  root.appendChild(
+    el(
+      "p",
+      "lede",
+      "Optional FPS and frame-time overlay. Supported methods only (PresentMon ETW panel / MangoHud user wrap / macOS partial). Never injects into the game. Off by default when anti-cheat install markers are found. One global disable control."
+    )
+  )
+  const status = el("p", "status", "Loading overlay settings...")
+  const results = el("div", "results")
+  root.appendChild(status)
+  root.appendChild(results)
+
+  const pathInput = document.createElement("input")
+  pathInput.type = "text"
+  pathInput.placeholder = "Optional game install path for anti-cheat scan"
+  pathInput.setAttribute("aria-label", "Game install path for anti-cheat scan")
+
+  const enabledInput = document.createElement("input")
+  enabledInput.type = "checkbox"
+  enabledInput.id = "overlay-user-enabled"
+  enabledInput.setAttribute("aria-label", "Enable overlay when policy allows")
+
+  const acInput = document.createElement("input")
+  acInput.type = "checkbox"
+  acInput.id = "overlay-allow-ac"
+  acInput.setAttribute(
+    "aria-label",
+    "Allow overlay with anti-cheat when method is documented as non-injection"
+  )
+
+  const applyOverview = (overview) => {
+    status.textContent = overview.decision_enabled
+      ? `Overlay policy: enabled (${overview.method_id})`
+      : `Overlay policy: off (${overview.block_reason || "preference"})`
+    results.replaceChildren()
+    results.appendChild(el("p", null, overview.note))
+    results.appendChild(
+      el(
+        "p",
+        null,
+        `Method: ${overview.method_id} / ${overview.method_status}. ${overview.method_summary}`
+      )
+    )
+    results.appendChild(el("p", null, overview.method_detail))
+    results.appendChild(
+      el(
+        "p",
+        null,
+        `Injects into game: ${overview.injects_into_game ? "yes" : "no"}. Decision: ${overview.decision_message}`
+      )
+    )
+    results.appendChild(
+      el(
+        "p",
+        null,
+        `Anti-cheat: ${overview.anti_cheat_detected ? "detected" : "not detected"}. ${overview.anti_cheat_note}`
+      )
+    )
+    const panel = overview.panel
+    results.appendChild(
+      el(
+        "p",
+        null,
+        `Panel: ${panel.status}; avg FPS ${panel.avg_fps ?? "n/a"}; frame time ${panel.avg_frame_time_ms ?? "n/a"} ms; samples ${panel.sample_count}. ${panel.note}`
+      )
+    )
+    enabledInput.checked = overview.settings.user_enabled && !overview.settings.globally_disabled
+    acInput.checked = overview.settings.allow_with_anti_cheat
+  }
+
+  const refresh = async () => {
+    status.textContent = "Refreshing..."
+    try {
+      const path = pathInput.value.trim()
+      const overview = await invoke("overlay_get_overview", {
+        installPath: path || null,
+      })
+      applyOverview(overview)
+    } catch (error) {
+      status.textContent = `Overlay load failed: ${error}`
+    }
+  }
+
+  const handleSave = async () => {
+    status.textContent = "Saving..."
+    try {
+      const overview = await invoke("overlay_save_settings", {
+        request: {
+          globally_disabled: false,
+          user_enabled: enabledInput.checked,
+          allow_with_anti_cheat: acInput.checked,
+          install_path: pathInput.value.trim() || null,
+        },
+      })
+      applyOverview(overview)
+    } catch (error) {
+      status.textContent = `Save failed: ${error}`
+    }
+  }
+
+  const handleGlobalDisable = async () => {
+    status.textContent = "Disabling globally..."
+    try {
+      const overview = await invoke("overlay_disable_globally")
+      applyOverview(overview)
+    } catch (error) {
+      status.textContent = `Global disable failed: ${error}`
+    }
+  }
+
+  const handleScan = async () => {
+    const path = pathInput.value.trim()
+    if (!path) {
+      status.textContent = "Enter an install path to scan."
+      return
+    }
+    status.textContent = "Scanning..."
+    try {
+      const overview = await invoke("overlay_scan_anti_cheat", {
+        request: { install_path: path },
+      })
+      applyOverview(overview)
+    } catch (error) {
+      status.textContent = `Scan failed: ${error}`
+    }
+  }
+
+  const handleMockPanel = async () => {
+    try {
+      const panel = await invoke("overlay_labeled_mock_panel")
+      results.appendChild(
+        el(
+          "p",
+          null,
+          `Labeled mock panel: ${panel.status}; avg FPS ${panel.avg_fps?.toFixed?.(2) ?? panel.avg_fps} (not live capture).`
+        )
+      )
+    } catch (error) {
+      status.textContent = `Mock panel failed: ${error}`
+    }
+  }
+
+  root.appendChild(field("Install path", pathInput))
+  const enabledLabel = el("label", "field")
+  enabledLabel.appendChild(enabledInput)
+  enabledLabel.appendChild(el("span", "field-label", " Enable overlay (when policy allows)"))
+  root.appendChild(enabledLabel)
+  const acLabel = el("label", "field")
+  acLabel.appendChild(acInput)
+  acLabel.appendChild(
+    el(
+      "span",
+      "field-label",
+      " Allow with anti-cheat (documented non-injection methods only; still off by default until checked)"
+    )
+  )
+  root.appendChild(acLabel)
+  const row = el("div", "actions")
+  row.appendChild(
+    button("Save overlay settings", handleSave, {
+      ariaLabel: "Save overlay settings",
+    })
+  )
+  row.appendChild(
+    button("Disable overlay globally", handleGlobalDisable, {
+      ariaLabel: "Disable overlay globally in one control",
+    })
+  )
+  row.appendChild(
+    button("Scan install path", handleScan, {
+      ariaLabel: "Scan install path for anti-cheat markers",
+    })
+  )
+  row.appendChild(
+    button("Show labeled mock panel", handleMockPanel, {
+      ariaLabel: "Show labeled mock overlay panel values",
+    })
+  )
+  row.appendChild(
+    button("Refresh", refresh, {
+      ariaLabel: "Refresh overlay overview",
+    })
+  )
+  root.appendChild(row)
+  await refresh()
+}
+
 const renderRoute = async (routes, info) => {
   const id = parseRouteId()
   const route = routes.find((item) => item.id === id) || routes[0]
@@ -1123,6 +1311,8 @@ const renderRoute = async (routes, info) => {
     await renderProfiles(body)
   } else if (activeId === "everyday") {
     await renderEveryday(body)
+  } else if (activeId === "overlay") {
+    await renderOverlay(body)
   } else if (activeId === "changelog") {
     await renderChangelog(body)
   } else if (activeId === "restore-all") {

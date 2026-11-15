@@ -1,4 +1,4 @@
-//! Hertzline Tauri shell (HZ-029--HZ-033).
+//! Hertzline Tauri shell (HZ-029--HZ-034).
 //!
 //! Unprivileged by default. Elevation is requested per action, never at startup.
 
@@ -20,6 +20,11 @@ use hertzline_app::everyday_ui::{
     EverydayOverviewDto, PresetOutcomeDto, WeeklyReportDto,
 };
 use hertzline_app::measure::{run_measurement, MeasureRequest, MeasureResult};
+use hertzline_app::overlay_ui::{
+    disable_overlay_globally, labeled_mock_panel_fps, overlay_overview, save_overlay_settings,
+    scan_anti_cheat, OverlayOverviewDto, OverlayPanelDto, OverlayScanRequest,
+    SaveOverlaySettingsRequest,
+};
 use hertzline_app::profiles_ui::{
     add_manual_path, apply_profile, apply_restore_labeled_mock, profiles_overview,
     recover_profiles_after_crash, restore_active_profile, save_profile, AddManualPathRequest,
@@ -190,32 +195,59 @@ fn everyday_weekly_report() -> Result<WeeklyReportDto, String> {
     weekly_health_report()
 }
 
+#[tauri::command]
+fn overlay_get_overview(install_path: Option<String>) -> Result<OverlayOverviewDto, String> {
+    overlay_overview(install_path.as_deref())
+}
+
+#[tauri::command]
+fn overlay_save_settings(
+    request: SaveOverlaySettingsRequest,
+) -> Result<OverlayOverviewDto, String> {
+    save_overlay_settings(request)
+}
+
+#[tauri::command]
+fn overlay_disable_globally() -> Result<OverlayOverviewDto, String> {
+    disable_overlay_globally()
+}
+
+#[tauri::command]
+fn overlay_scan_anti_cheat(request: OverlayScanRequest) -> Result<OverlayOverviewDto, String> {
+    scan_anti_cheat(request)
+}
+
+#[tauri::command]
+fn overlay_labeled_mock_panel() -> OverlayPanelDto {
+    labeled_mock_panel_fps(60.0)
+}
+
 fn run_smoke_and_exit() -> ! {
     let info = get_shell_info();
     if !info.unprivileged {
-        eprintln!("hz033 smoke failed: shell must be unprivileged");
+        eprintln!("hz034 smoke failed: shell must be unprivileged");
         std::process::exit(1);
     }
     let expected = required_route_ids();
     let got: Vec<&str> = info.routes.iter().map(|r| r.id.as_str()).collect();
     if got != expected {
-        eprintln!("hz033 smoke failed: routes={got:?} expected={expected:?}");
+        eprintln!("hz034 smoke failed: routes={got:?} expected={expected:?}");
         std::process::exit(1);
     }
     for id in expected {
         if open_route(id.to_string()).is_err() {
-            eprintln!("hz033 smoke failed: open_route({id})");
+            eprintln!("hz034 smoke failed: open_route({id})");
             std::process::exit(1);
         }
     }
-    let core = core_ping("hz033-smoke".into());
+    let core = core_ping("hz034-smoke".into());
     if !core.ok {
-        eprintln!("hz033 smoke failed: core_ping={core:?}");
+        eprintln!("hz034 smoke failed: core_ping={core:?}");
         std::process::exit(1);
     }
 
     let dir = std::env::temp_dir().join(format!(
-        "hertzline-app-hz033-smoke-{}-{}",
+        "hertzline-app-hz034-smoke-{}-{}",
         std::process::id(),
         std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
@@ -225,51 +257,68 @@ fn run_smoke_and_exit() -> ! {
     let _ = std::fs::create_dir_all(&dir);
     let store = dir.join("snapshots.json");
     let archive = dir.join("archive.json");
+    let overlay_settings = dir.join("overlay_settings.json");
     std::env::set_var(hertzline_core::paths::SNAPSHOT_STORE_ENV, store.as_os_str());
     std::env::set_var(
         hertzline_core::paths::MEASUREMENT_ARCHIVE_ENV,
         archive.as_os_str(),
     );
+    std::env::set_var(
+        hertzline_core::overlay::OVERLAY_SETTINGS_ENV,
+        overlay_settings.as_os_str(),
+    );
 
-    let overview = match everyday_get_overview() {
+    let game = dir.join("game");
+    let _ = std::fs::create_dir_all(game.join("EasyAntiCheat"));
+
+    let overview = match overlay_get_overview(None) {
         Ok(v) => v,
         Err(e) => {
-            eprintln!("hz033 smoke failed: overview={e}");
+            eprintln!("hz034 smoke failed: overview={e}");
             std::process::exit(1);
         }
     };
-    if overview
-        .hogs
-        .note
-        .to_ascii_lowercase()
-        .contains("never kill")
-        || overview.hogs.note.contains("never kills")
-    {
-        // ok
-    } else {
-        eprintln!("hz033 smoke failed: hogs note missing no-kill promise");
+    if overview.injects_into_game {
+        eprintln!("hz034 smoke failed: injects_into_game must be false");
         std::process::exit(1);
     }
-    if kill_hog_guard(false).is_ok() || kill_hog_guard(true).is_ok() {
-        eprintln!("hz033 smoke failed: kill guard must refuse");
+    if overview.decision_enabled {
+        eprintln!("hz034 smoke failed: default overlay must be off");
         std::process::exit(1);
     }
-    let preview = match apply_cleanup(CleanupApplyRequest { confirm: false }) {
-        CleanupOutcomeDto::PreviewRequired { .. } => "preview_ok",
-        other => {
-            eprintln!("hz033 smoke failed: cleanup without confirm={other:?}");
-            std::process::exit(1);
-        }
-    };
-    let weekly = match everyday_weekly_report() {
+
+    let ac = match overlay_save_settings(SaveOverlaySettingsRequest {
+        globally_disabled: false,
+        user_enabled: true,
+        allow_with_anti_cheat: false,
+        install_path: Some(game.display().to_string()),
+    }) {
         Ok(v) => v,
         Err(e) => {
-            eprintln!("hz033 smoke failed: weekly={e}");
+            eprintln!("hz034 smoke failed: save={e}");
             std::process::exit(1);
         }
     };
-    if weekly.note.is_empty() {
-        eprintln!("hz033 smoke failed: weekly note empty");
+    if !ac.anti_cheat_detected || ac.decision_enabled {
+        eprintln!("hz034 smoke failed: anti-cheat must keep overlay off by default");
+        std::process::exit(1);
+    }
+
+    let disabled = match overlay_disable_globally() {
+        Ok(v) => v,
+        Err(e) => {
+            eprintln!("hz034 smoke failed: global disable={e}");
+            std::process::exit(1);
+        }
+    };
+    if !disabled.settings.globally_disabled || disabled.decision_enabled {
+        eprintln!("hz034 smoke failed: global disable did not stick");
+        std::process::exit(1);
+    }
+
+    let mock = overlay_labeled_mock_panel();
+    if mock.status != "available" || mock.avg_fps.is_none() {
+        eprintln!("hz034 smoke failed: labeled mock panel={mock:?}");
         std::process::exit(1);
     }
 
@@ -277,10 +326,8 @@ fn run_smoke_and_exit() -> ! {
 
     let route_list = expected.join(",");
     println!(
-        "hz033_smoke_ok unprivileged=true routes={route_list} cleanup={preview} thermal={} startup_rows={} hogs={} weekly_ok=1 app={} core={}",
-        overview.thermal.level,
-        overview.startup.rows.len(),
-        overview.hogs.hogs.len(),
+        "hz034_smoke_ok unprivileged=true routes={route_list} inject=0 ac_default_off=1 global_disable=1 mock_panel=ok method={} app={} core={}",
+        overview.method_id,
         info.app_version,
         info.core_version
     );
@@ -326,7 +373,12 @@ pub fn run() {
             everyday_restore_preset,
             everyday_apply_cleanup,
             everyday_kill_guard,
-            everyday_weekly_report
+            everyday_weekly_report,
+            overlay_get_overview,
+            overlay_save_settings,
+            overlay_disable_globally,
+            overlay_scan_anti_cheat,
+            overlay_labeled_mock_panel
         ])
         .run(tauri::generate_context!())
         .expect("error while running Hertzline");

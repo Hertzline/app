@@ -1,4 +1,4 @@
-//! Desktop shell routes (HZ-029 / HZ-033).
+//! Desktop shell routes (HZ-029 / HZ-033 / HZ-034).
 //!
 //! Navigation targets only. Feature UIs live in sibling modules.
 
@@ -13,18 +13,20 @@ pub enum AppRoute {
     Actions,
     Profiles,
     Everyday,
+    Overlay,
     Changelog,
     RestoreAll,
 }
 
 impl AppRoute {
     /// Stable order used by nav and smoke checks.
-    pub const ALL: [AppRoute; 7] = [
+    pub const ALL: [AppRoute; 8] = [
         Self::Measure,
         Self::Benchmark,
         Self::Actions,
         Self::Profiles,
         Self::Everyday,
+        Self::Overlay,
         Self::Changelog,
         Self::RestoreAll,
     ];
@@ -36,6 +38,7 @@ impl AppRoute {
             Self::Actions => "actions",
             Self::Profiles => "profiles",
             Self::Everyday => "everyday",
+            Self::Overlay => "overlay",
             Self::Changelog => "changelog",
             Self::RestoreAll => "restore-all",
         }
@@ -48,6 +51,7 @@ impl AppRoute {
             Self::Actions => "Actions",
             Self::Profiles => "Profiles",
             Self::Everyday => "Everyday",
+            Self::Overlay => "Overlay",
             Self::Changelog => "Change log",
             Self::RestoreAll => "Restore all",
         }
@@ -102,13 +106,14 @@ pub fn shell_info(app_version: &str, core_version: &str) -> ShellInfo {
 }
 
 /// Assert every required route is present (smoke / tests).
-pub fn required_route_ids() -> [&'static str; 7] {
+pub fn required_route_ids() -> [&'static str; 8] {
     [
         "measure",
         "benchmark",
         "actions",
         "profiles",
         "everyday",
+        "overlay",
         "changelog",
         "restore-all",
     ]
@@ -126,21 +131,21 @@ mod tests {
             assert_eq!(route.hash_path(), format!("#/{id}"));
             assert!(!route.title().is_empty());
         }
-        assert_eq!(AppRoute::ALL.len(), 7);
+        assert_eq!(AppRoute::ALL.len(), 8);
     }
 
     #[test]
-    fn shell_info_is_unprivileged_with_seven_routes() {
+    fn shell_info_is_unprivileged_with_eight_routes() {
         let info = shell_info("0.0.0", "0.0.0");
         assert!(info.unprivileged);
-        assert_eq!(info.routes.len(), 7);
+        assert_eq!(info.routes.len(), 8);
         let ids: Vec<&str> = info.routes.iter().map(|r| r.id.as_str()).collect();
         assert_eq!(ids, required_route_ids());
     }
 
     #[test]
     fn unknown_route_is_none() {
-        assert!(AppRoute::parse("overlay").is_none());
+        assert!(AppRoute::parse("not-a-route").is_none());
         assert!(AppRoute::parse("").is_none());
     }
 }
