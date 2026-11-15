@@ -1,5 +1,7 @@
 # App CI. Actions pinned to commit SHAs (REPOS.md / RULES.md).
+# Hertzline/.github pin: f4f947f31a5da82d0ca4828917490d2a1d1217b0 (HZ-003 / HZ-056).
 # Checks out Hertzline/core as a sibling for the path dependency.
+# license-audit in reusable-ci is false: path dep needs sibling checkout first.
 name: ci
 
 on:
@@ -12,8 +14,17 @@ permissions:
   contents: read
 
 jobs:
+  shared:
+    uses: Hertzline/.github/.github/workflows/reusable-ci.yml@f4f947f31a5da82d0ca4828917490d2a1d1217b0
+    with:
+      meta-ref: f4f947f31a5da82d0ca4828917490d2a1d1217b0
+      pin-check: true
+      license-audit: false
+      has-secrets: false
+
   app-test:
     name: app-test (${{ matrix.os }})
+    needs: [shared]
     runs-on: ${{ matrix.os }}
     defaults:
       run:
@@ -52,6 +63,21 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y libwebkit2gtk-4.1-dev libayatana-appindicator3-dev librsvg2-dev patchelf
 
+      - name: HZ-056 hardening gate
+        run: python scripts/check_hz056.py
+
+      - name: Install cargo-deny
+        run: cargo install cargo-deny --version 0.20.2 --locked
+
+      - name: License audit (cargo deny check licenses)
+        run: cargo deny check licenses
+
+      - name: Install npm deps
+        run: npm ci
+
+      - name: License audit (license-checker@25.0.1 production)
+        run: npx --yes license-checker@25.0.1 --production --failOn "GPL;AGPL;SSPL;BUSL;Commons Clause"
+
       - name: Fmt
         # Only app workspace packages; --all would also fmt the sibling core workspace.
         run: cargo fmt -p hertzline-app -p hertzline -- --check
@@ -61,9 +87,6 @@ jobs:
 
       - name: Test
         run: cargo test --workspace --locked
-
-      - name: Install Tauri CLI
-        run: npm ci
 
       - name: Tauri build (no bundle)
         run: npx tauri build --no-bundle
