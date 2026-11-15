@@ -69,6 +69,9 @@ jobs:
       - name: HZ-057 integration gate
         run: python scripts/check_hz057.py
 
+      - name: HZ-058 policy freeze gate
+        run: python scripts/check_hz058.py
+
       - name: Install cargo-deny
         run: cargo install cargo-deny --version 0.20.2 --locked
 
@@ -93,6 +96,9 @@ jobs:
 
       - name: HZ-057 integration tests
         run: cargo test -p hertzline-app --test hz057_integration --locked -- --nocapture
+
+      - name: HZ-058 policy tests
+        run: cargo test -p hertzline-app --test hz058_policy --locked -- --nocapture
 
       - name: Tauri build (no bundle)
         run: npx tauri build --no-bundle
