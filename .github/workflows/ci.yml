@@ -72,6 +72,9 @@ jobs:
       - name: HZ-058 policy freeze gate
         run: python scripts/check_hz058.py
 
+      - name: HZ-059 v1 RC metadata gate
+        run: python scripts/check_hz059.py
+
       - name: Install cargo-deny
         run: cargo install cargo-deny --version 0.20.2 --locked
 
