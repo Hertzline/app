@@ -1,20 +1,34 @@
 <div align="center">
 
-# Hertzline / app
+<a href="https://github.com/Hertzline/app"><img src="https://capsule-render.vercel.app/api?type=waving&height=180&color=0:0f1412,55:12352c,100:0f6b4c&text=Hertzline&fontColor=e8eeeb&fontSize=64&fontAlignY=45&animation=twinkling" alt="Hertzline" width="100%" /></a>
 
-**Measure. Explain. Restore.**
+<img src="https://readme-typing-svg.demolab.com?font=IBM+Plex+Mono&weight=500&size=16&color=2A9B7A&center=true&vCenter=true&width=520&height=34&duration=2800&pause=1200&lines=Desktop+shell+(Tauri+2);Unprivileged+by+default;Measure.+Explain.+Restore.;No+unverified+FPS+claims" alt="Desktop shell" />
 
-Desktop shell for [Hertzline](https://github.com/Hertzline).
-
-Unprivileged by default. Elevation is requested per action only, never for the whole process.
-
-UI chrome uses the same navy / teal / amber system as the website and the Leo-Galli README DNA.
+<p>
+  <a href="https://github.com/Hertzline"><img src="https://skillicons.dev/icons?i=github&theme=dark" width="44" height="44" alt="GitHub" /></a>&nbsp;
+  <a href="https://www.rust-lang.org"><img src="https://skillicons.dev/icons?i=rust&theme=dark" width="44" height="44" alt="Rust" /></a>&nbsp;
+  <a href="https://tauri.app"><img src="https://skillicons.dev/icons?i=tauri&theme=dark" width="44" height="44" alt="Tauri" /></a>
+</p>
 
 </div>
 
----
+<br/>
 
-## Layout
+<img src="https://capsule-render.vercel.app/api?type=rect&height=3&color=0:0f1412,35:2a9b7a,70:c9a227,100:0f1412" width="100%" alt="" />
+
+<br/>
+
+<p align="center"><img src="https://readme-typing-svg.demolab.com?font=IBM+Plex+Mono&weight=700&size=18&color=2A9B7A&center=true&vCenter=true&width=420&height=40&duration=1&pause=1000000&letterSpacing=6px&lines=WHAT+THIS+REPO+IS" alt="What this repo is" /></p>
+
+Desktop shell for [Hertzline](https://github.com/Hertzline). Unprivileged by default. Elevation is requested per action only, never for the whole process.
+
+Requires sibling checkout of `Hertzline/core` at `../core`.
+
+<img src="https://capsule-render.vercel.app/api?type=rect&height=3&color=0:0f1412,35:2a9b7a,70:c9a227,100:0f1412" width="100%" alt="" />
+
+<br/>
+
+<p align="center"><img src="https://readme-typing-svg.demolab.com?font=IBM+Plex+Mono&weight=700&size=18&color=2A9B7A&center=true&vCenter=true&width=420&height=40&duration=1&pause=1000000&letterSpacing=6px&lines=LAYOUT" alt="Layout" /></p>
 
 | Path | Role |
 |---|---|
@@ -22,25 +36,25 @@ UI chrome uses the same navy / teal / amber system as the website and the Leo-Ga
 | `src-tauri` | Tauri 2 binary (`hertzline`) |
 | `ui` | Static shell UI (hash routes) |
 
-## Shell routes (HZ-029 / HZ-030 / HZ-031)
+Routes: `#/measure` · `#/benchmark` · `#/actions` · `#/profiles` · `#/changelog` · `#/restore-all` · `#/everyday` · `#/overlay`
 
-`#/measure` · `#/benchmark` · `#/actions` · `#/profiles` · `#/changelog` · `#/restore-all`
+<img src="https://capsule-render.vercel.app/api?type=rect&height=3&color=0:0f1412,35:2a9b7a,70:c9a227,100:0f1412" width="100%" alt="" />
 
-Measure runs frame probe + hardware/disk/network collectors and exports CSV/JSON with identical fields. Benchmark uses warm-up, fixed duration, >=3 passes, noise-band verdict, and offers revert on "no measurable effect". No "+X FPS" claim without a local before/after result.
+<br/>
 
-Actions lists per-OS AC-4.x entries with AC-8.1 explanations and AC-8.2 local-measurement notes, elevation prompts, and macOS honesty (AC-4.23). Change log shows time/action/before/after/restore status (AC-7.5). Restore all reverts outstanding changes (AC-7.2).
+<p align="center"><img src="https://readme-typing-svg.demolab.com?font=IBM+Plex+Mono&weight=700&size=18&color=2A9B7A&center=true&vCenter=true&width=420&height=40&duration=1&pause=1000000&letterSpacing=6px&lines=VERSIONS" alt="Versions" /></p>
 
-## Versions (verified 2026-11-14)
+| Package | Version | License |
+|---|---|---|
+| tauri | 2.12.5 | Apache-2.0 OR MIT |
+| tauri-build | 2.7.4 | Apache-2.0 OR MIT |
+| @tauri-apps/cli | 2.12.4 | Apache-2.0 OR MIT |
 
-| Package | Version | License | Source |
-|---|---|---|---|
-| tauri | 2.12.5 | Apache-2.0 OR MIT | crates.io `max_stable` |
-| tauri-build | 2.7.4 | Apache-2.0 OR MIT | crates.io |
-| @tauri-apps/cli | 2.12.4 | Apache-2.0 OR MIT | npm latest |
+<img src="https://capsule-render.vercel.app/api?type=rect&height=3&color=0:0f1412,35:2a9b7a,70:c9a227,100:0f1412" width="100%" alt="" />
 
-## Build
+<br/>
 
-Requires sibling checkout of `Hertzline/core` at `../core`.
+<p align="center"><img src="https://readme-typing-svg.demolab.com?font=IBM+Plex+Mono&weight=700&size=18&color=2A9B7A&center=true&vCenter=true&width=420&height=40&duration=1&pause=1000000&letterSpacing=6px&lines=BUILD" alt="Build" /></p>
 
 ```bash
 npm ci
@@ -48,22 +62,17 @@ cargo test --locked
 npm run build
 ```
 
-Headless smoke (no window):
+Headless smoke:
 
 ```bash
-# after release build
 set HERTZLINE_APP_SMOKE=1
-target/release/hertzline.exe
+target\release\hertzline.exe
 ```
 
-## Profile lifecycle (HZ-028)
-
-1. `ProfileHost::apply_on_start` applies the game profile and writes an active-profile marker.
-2. `restore_on_exit` / `poll_game_exit` restores every applied setting on normal exit (AC-3.3).
-3. `recover_from_prior_crash` uses HZ-018 `recover_from_crash` when a marker remains (AC-3.4).
+<p align="center"><sub><i>Clean measurements are like a well-refereed match: when everything works, nobody invents the score.</i></sub></p>
 
 ## License
 
-[MIT](LICENSE)
+[MIT](LICENSE) · [NOTICE](NOTICE)
 
-Third-party notices: [NOTICE](NOTICE)
+<img src="https://capsule-render.vercel.app/api?type=waving&section=footer&height=110&color=0:0f1412,55:12352c,100:0f6b4c" alt="" width="100%" />
