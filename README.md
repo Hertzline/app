@@ -1,8 +1,18 @@
+<div align="center">
+
 # Hertzline / app
+
+**Measure. Explain. Restore.**
 
 Desktop shell for [Hertzline](https://github.com/Hertzline).
 
-Unprivileged by default. Elevation is requested per action later, never for the whole process.
+Unprivileged by default. Elevation is requested per action only, never for the whole process.
+
+UI chrome uses the same navy / teal / amber system as the website and the Leo-Galli README DNA.
+
+</div>
+
+---
 
 ## Layout
 

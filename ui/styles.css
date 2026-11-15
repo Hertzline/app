@@ -1,12 +1,18 @@
 :root {
-  --bg: #eef2f0;
-  --panel: #f7faf8;
-  --ink: #14201a;
-  --muted: #3d5248;
-  --line: #c5d2cb;
-  --accent: #0f6b4c;
-  --accent-ink: #f4fbf7;
-  --focus: #0b4f39;
+  --bg-deep: #040812;
+  --bg: #0a1220;
+  --panel: #0f1b30;
+  --ink: #e2e8f0;
+  --muted: #94a3b8;
+  --line: #24406b;
+  --accent: #14b8a6;
+  --accent-hi: #2dd4bf;
+  --accent-ink: #041018;
+  --amber: #e5b567;
+  --focus: #2dd4bf;
+  --danger: #f87171;
+  --font-sans: "Instrument Sans", "Segoe UI", sans-serif;
+  --font-mono: "JetBrains Mono", "Consolas", monospace;
 }
 
 * {
@@ -19,9 +25,10 @@ body {
   min-height: 100%;
   color: var(--ink);
   background:
-    radial-gradient(1200px 600px at 10% -10%, #d9ebe3 0%, transparent 55%),
-    linear-gradient(180deg, #f4f7f5 0%, var(--bg) 100%);
-  font-family: "Segoe UI", "Helvetica Neue", sans-serif;
+    radial-gradient(900px 480px at 10% -10%, rgba(20, 184, 166, 0.16) 0%, transparent 55%),
+    radial-gradient(700px 420px at 95% 0%, rgba(229, 181, 103, 0.1) 0%, transparent 50%),
+    linear-gradient(180deg, var(--bg-deep) 0%, var(--bg) 45%, var(--bg) 100%);
+  font-family: var(--font-sans);
   line-height: 1.45;
 }
 
@@ -34,24 +41,28 @@ body {
 
 .top {
   grid-column: 1 / -1;
-  padding: 1rem 1.25rem 0.75rem;
-  border-bottom: 1px solid var(--line);
-  background: color-mix(in srgb, var(--panel) 88%, transparent);
+  padding: 1rem 1.25rem 0.85rem;
+  border-bottom: 1px solid color-mix(in srgb, var(--accent) 35%, var(--line));
+  background: color-mix(in srgb, var(--bg-deep) 92%, black);
 }
 
 .brand {
   margin: 0;
-  font-family: Georgia, "Times New Roman", serif;
-  font-size: 1.65rem;
-  letter-spacing: -0.02em;
-  font-weight: 600;
+  font-family: var(--font-mono);
+  font-size: 1.35rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  font-weight: 700;
+  color: var(--ink);
 }
 
 .tag {
-  margin: 0.2rem 0 0;
-  color: var(--muted);
-  font-size: 0.95rem;
-  max-width: 40rem;
+  margin: 0.35rem 0 0;
+  color: var(--accent-hi);
+  font-family: var(--font-mono);
+  font-size: 0.78rem;
+  letter-spacing: 0.04em;
+  max-width: 42rem;
 }
 
 .nav {
@@ -69,12 +80,16 @@ body {
   color: var(--ink);
   text-decoration: none;
   border: 1px solid transparent;
-  border-radius: 0.25rem;
+  border-radius: 2px;
+  font-family: var(--font-mono);
+  font-size: 0.78rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
 }
 
 .nav a:hover {
   border-color: var(--line);
-  background: #e8f1ec;
+  background: color-mix(in srgb, var(--accent) 12%, var(--panel));
 }
 
 .nav a[aria-current="page"] {
@@ -95,15 +110,20 @@ main {
 
 main h1 {
   margin: 0 0 0.5rem;
-  font-family: Georgia, "Times New Roman", serif;
-  font-size: 1.45rem;
-  letter-spacing: -0.015em;
+  font-family: var(--font-mono);
+  font-size: 1.15rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--accent-hi);
 }
 
 main h2 {
   margin: 0 0 0.5rem;
-  font-family: Georgia, "Times New Roman", serif;
-  font-size: 1.1rem;
+  font-family: var(--font-mono);
+  font-size: 0.92rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--amber);
 }
 
 main p,
@@ -117,7 +137,8 @@ main p,
 
 .meta {
   margin-top: 1.5rem;
-  font-size: 0.85rem;
+  font-size: 0.8rem;
+  font-family: var(--font-mono);
   color: var(--muted);
 }
 
@@ -125,7 +146,8 @@ main p,
   margin: 0 0 1rem;
   padding: 0.9rem 1rem;
   border: 1px solid var(--line);
-  background: color-mix(in srgb, var(--panel) 92%, white);
+  border-top: 2px solid var(--accent);
+  background: var(--panel);
 }
 
 .field {
@@ -135,8 +157,11 @@ main p,
 }
 
 .field-label {
-  font-size: 0.9rem;
-  color: var(--ink);
+  font-size: 0.78rem;
+  font-family: var(--font-mono);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--amber);
 }
 
 input,
@@ -150,9 +175,9 @@ textarea {
   width: 100%;
   padding: 0.45rem 0.55rem;
   border: 1px solid var(--line);
-  border-radius: 0.25rem;
+  border-radius: 2px;
   color: var(--ink);
-  background: #fff;
+  background: var(--bg-deep);
 }
 
 input:focus-visible,
@@ -170,17 +195,22 @@ button:focus-visible {
 }
 
 .btn {
-  padding: 0.45rem 0.8rem;
+  padding: 0.45rem 0.85rem;
   border: 1px solid var(--accent);
-  border-radius: 0.25rem;
+  border-radius: 2px;
   background: var(--accent);
   color: var(--accent-ink);
   cursor: pointer;
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
 }
 
 .btn:hover {
-  background: var(--focus);
-  border-color: var(--focus);
+  background: var(--accent-hi);
+  border-color: var(--accent-hi);
 }
 
 .btn-secondary {
@@ -190,14 +220,16 @@ button:focus-visible {
 }
 
 .btn-secondary:hover {
-  background: #e8f1ec;
+  background: color-mix(in srgb, var(--accent) 14%, var(--panel));
+  border-color: var(--accent);
 }
 
 .metrics {
   width: 100%;
   border-collapse: collapse;
   margin: 0 0 0.75rem;
-  font-size: 0.92rem;
+  font-size: 0.9rem;
+  font-family: var(--font-mono);
 }
 
 .metrics th,
@@ -210,12 +242,15 @@ button:focus-visible {
 
 .metrics th {
   width: 11rem;
-  color: var(--ink);
+  color: var(--amber);
   font-weight: 600;
+  font-size: 0.75rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
 }
 
 .revert {
-  color: var(--ink);
+  color: var(--accent-hi);
   font-weight: 600;
 }
 
@@ -228,12 +263,16 @@ button:focus-visible {
   display: grid;
   grid-template-columns: 9rem 1fr;
   gap: 0.35rem 0.75rem;
-  font-size: 0.92rem;
+  font-size: 0.9rem;
 }
 
 .explanation dt {
   margin: 0;
-  color: var(--ink);
+  color: var(--amber);
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
   font-weight: 600;
 }
 
@@ -244,7 +283,7 @@ button:focus-visible {
 }
 
 .honesty {
-  border-color: var(--accent);
+  border-color: var(--amber);
 }
 
 .cap-list {
@@ -274,8 +313,10 @@ button:focus-visible {
 
 .other-os summary {
   cursor: pointer;
-  color: var(--ink);
+  color: var(--accent-hi);
+  font-family: var(--font-mono);
   font-weight: 600;
+  letter-spacing: 0.04em;
 }
 
 .other-os summary:focus-visible {
