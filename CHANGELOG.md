@@ -4,6 +4,13 @@ All notable changes to the Hertzline desktop app are recorded here.
 The website `/changelog/` mirrors release highlights from `releases.json`
 after a signed public release is published.
 
+## [1.0.4] - 2026-11-16
+
+### Changed
+
+- Larger window, brand mark in rail, stronger score ring chrome
+- Website splash is brand-first with signal wave -- no fake UI screenshot on home
+
 ## [1.0.3] - 2026-11-16
 
 ### Fixed

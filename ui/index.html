@@ -12,11 +12,17 @@
     <div class="layout">
       <aside class="rail">
         <div class="rail-brand">
-          <p class="brand" id="brand">Hertzline</p>
-          <p class="brand-mark">HZ</p>
+          <svg class="brand-mark-svg" viewBox="0 0 40 32" aria-hidden="true">
+            <path fill="none" stroke="currentColor" stroke-width="2.25" stroke-linecap="round" d="M2 16 C7 8 12 24 18 16 C24 8 29 24 38 16"/>
+            <path fill="none" stroke="currentColor" stroke-width="1.5" opacity="0.4" d="M2 24h36"/>
+          </svg>
+          <div>
+            <p class="brand" id="brand">Hertzline</p>
+            <p class="brand-sub">strumento locale</p>
+          </div>
         </div>
         <nav class="nav" id="nav" aria-label="Principale"></nav>
-        <p class="rail-foot" id="rail-foot">locale · no elevazione</p>
+        <p class="rail-foot" id="rail-foot">no elevazione all'avvio</p>
       </aside>
       <div class="stage">
         <header class="top">
@@ -33,7 +39,6 @@
         <main id="main" tabindex="-1" aria-live="polite">
           <header class="page-head">
             <h1 id="title">Caricamento</h1>
-            <p class="lede" id="page-lede" hidden></p>
           </header>
           <div id="body"></div>
           <p class="meta" id="meta"></p>
