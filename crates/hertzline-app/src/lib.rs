@@ -29,9 +29,9 @@ pub use benchmark_ui::{
     run_labeled_mock_pair, BenchConfigDto, BenchResultDto, VerdictDto,
 };
 pub use everyday_ui::{
-    apply_cleanup, apply_power_preset, everyday_overview, kill_hog_guard, restore_power_preset,
-    weekly_health_report, ApplyPresetRequest, CleanupApplyRequest, CleanupOutcomeDto,
-    EverydayOverviewDto, PresetOutcomeDto, WeeklyReportDto,
+    apply_cleanup, apply_power_preset, everyday_overview, everyday_overview_lite, kill_hog_guard,
+    restore_power_preset, weekly_health_report, ApplyPresetRequest, CleanupApplyRequest,
+    CleanupOutcomeDto, EverydayOverviewDto, PresetOutcomeDto, WeeklyReportDto,
 };
 pub use measure::{
     explanation_with_evidence, run_measurement, MeasureRequest, MeasureResult,

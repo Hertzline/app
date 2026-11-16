@@ -4,6 +4,12 @@ All notable changes to the Hertzline desktop app are recorded here.
 The website `/changelog/` mirrors release highlights from `releases.json`
 after a signed public release is published.
 
+## [1.0.3] - 2026-11-16
+
+### Fixed
+
+- Home loads a lite overview (startup + thermal + power) so score/stats appear without waiting on hog/cleanup scans
+
 ## [1.0.2] - 2026-11-16
 
 ### Fixed

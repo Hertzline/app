@@ -318,9 +318,9 @@ const renderHome = async (root) => {
 
   try {
     const overview = await withTimeout(
-      invoke("everyday_get_overview"),
-      8000,
-      "everyday_get_overview"
+      invoke("everyday_get_overview_lite"),
+      5000,
+      "everyday_get_overview_lite"
     )
     homeCache = overview
     const { score, samples } = scoreFromOverview(overview, lastMeasure)

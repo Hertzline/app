@@ -185,6 +185,93 @@ fn read_power_preset() -> PowerPresetDto {
     }
 }
 
+fn map_startup(
+    startup: hertzline_core::everyday::StartupImpactReport,
+) -> StartupImpactDto {
+    StartupImpactDto {
+        host_os: startup.host_os,
+        source: startup.source.as_str().into(),
+        note: startup.note,
+        rows: startup
+            .rows
+            .into_iter()
+            .map(|r| StartupRowDto {
+                name: r.name,
+                command: r.command,
+                enabled: r.enabled,
+                impact_kind: r.impact_kind.as_str().into(),
+                impact_summary: r.impact_summary,
+                reversible: r.reversible,
+            })
+            .collect(),
+    }
+}
+
+fn map_thermal(thermal: hertzline_core::everyday::ThermalReport) -> ThermalDto {
+    ThermalDto {
+        level: thermal.level.as_str().into(),
+        cpu_temp_celsius: thermal.cpu_temp_celsius,
+        gpu_temp_celsius: thermal.gpu_temp_celsius,
+        throttling: thermal.throttling,
+        high_temp_celsius: HIGH_TEMP_CELSIUS,
+        warnings: thermal
+            .warnings
+            .into_iter()
+            .map(|w| ThermalWarningDto {
+                source: w.source,
+                message: w.message,
+            })
+            .collect(),
+        note: thermal.note,
+    }
+}
+
+#[cfg(test)]
+mod lite_tests {
+    use super::*;
+
+    #[test]
+    fn lite_overview_returns_without_hogs() {
+        let overview = everyday_overview_lite().expect("lite");
+        assert!(overview.hogs.hogs.is_empty());
+        assert_eq!(overview.cleanup.total_bytes, 0);
+        assert!(!overview.thermal.note.is_empty() || overview.thermal.level.len() > 0);
+    }
+}
+
+/// Fast Home dashboard: skip process hog refresh + disk cleanup walks.
+pub fn everyday_overview_lite() -> Result<EverydayOverviewDto, String> {
+    let startup = list_startup_impact().map_err(|e| e.to_string())?;
+    let power = read_power_preset();
+    let mut hw = SysinfoHardwareSampler::new();
+    let thermal = assess_thermal(&hw.sample());
+    Ok(EverydayOverviewDto {
+        local_measurement_note: crate::measure::NO_LOCAL_ACTION_MEASUREMENT.to_string(),
+        startup: map_startup(startup),
+        hogs: ResourceHogsDto {
+            host_os: std::env::consts::OS.into(),
+            note: "Home lite: process hog scan deferred to Quotidiano (full refresh).".into(),
+            hogs: Vec::new(),
+        },
+        power,
+        cleanup: CleanupPreviewDto {
+            host_os: std::env::consts::OS.into(),
+            note: "Home lite: disk cleanup preview deferred to Quotidiano.".into(),
+            total_bytes: 0,
+            entries: Vec::new(),
+        },
+        thermal: map_thermal(thermal),
+        weekly: WeeklyReportDto {
+            window_start_unix_ms: 0,
+            window_end_unix_ms: 0,
+            note: "Home lite: weekly report deferred to Quotidiano.".into(),
+            measurements: Vec::new(),
+            applied_actions: Vec::new(),
+            rollbacks: Vec::new(),
+        },
+    })
+}
+
 /// Full everyday overview for the UI route.
 pub fn everyday_overview() -> Result<EverydayOverviewDto, String> {
     let startup = list_startup_impact().map_err(|e| e.to_string())?;
@@ -201,23 +288,7 @@ pub fn everyday_overview() -> Result<EverydayOverviewDto, String> {
 
     Ok(EverydayOverviewDto {
         local_measurement_note: crate::measure::NO_LOCAL_ACTION_MEASUREMENT.to_string(),
-        startup: StartupImpactDto {
-            host_os: startup.host_os,
-            source: startup.source.as_str().into(),
-            note: startup.note,
-            rows: startup
-                .rows
-                .into_iter()
-                .map(|r| StartupRowDto {
-                    name: r.name,
-                    command: r.command,
-                    enabled: r.enabled,
-                    impact_kind: r.impact_kind.as_str().into(),
-                    impact_summary: r.impact_summary,
-                    reversible: r.reversible,
-                })
-                .collect(),
-        },
+        startup: map_startup(startup),
         hogs: ResourceHogsDto {
             host_os: hogs.host_os,
             note: hogs.note,
@@ -250,22 +321,7 @@ pub fn everyday_overview() -> Result<EverydayOverviewDto, String> {
                 })
                 .collect(),
         },
-        thermal: ThermalDto {
-            level: thermal.level.as_str().into(),
-            cpu_temp_celsius: thermal.cpu_temp_celsius,
-            gpu_temp_celsius: thermal.gpu_temp_celsius,
-            throttling: thermal.throttling,
-            high_temp_celsius: HIGH_TEMP_CELSIUS,
-            warnings: thermal
-                .warnings
-                .into_iter()
-                .map(|w| ThermalWarningDto {
-                    source: w.source,
-                    message: w.message,
-                })
-                .collect(),
-            note: thermal.note,
-        },
+        thermal: map_thermal(thermal),
         weekly: WeeklyReportDto {
             window_start_unix_ms: weekly.window_start_unix_ms,
             window_end_unix_ms: weekly.window_end_unix_ms,

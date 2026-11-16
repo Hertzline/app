@@ -15,9 +15,9 @@ use hertzline_app::benchmark_ui::{
     run_labeled_mock_pair, BenchConfigDto, BenchResultDto, VerdictDto,
 };
 use hertzline_app::everyday_ui::{
-    apply_cleanup, apply_power_preset, everyday_overview, kill_hog_guard, restore_power_preset,
-    weekly_health_report, ApplyPresetRequest, CleanupApplyRequest, CleanupOutcomeDto,
-    EverydayOverviewDto, PresetOutcomeDto, WeeklyReportDto,
+    apply_cleanup, apply_power_preset, everyday_overview, everyday_overview_lite, kill_hog_guard,
+    restore_power_preset, weekly_health_report, ApplyPresetRequest, CleanupApplyRequest,
+    CleanupOutcomeDto, EverydayOverviewDto, PresetOutcomeDto, WeeklyReportDto,
 };
 use hertzline_app::measure::{run_measurement, MeasureRequest, MeasureResult};
 use hertzline_app::overlay_ui::{
@@ -166,6 +166,11 @@ fn profiles_apply_restore_labeled_mock(
 #[tauri::command]
 fn everyday_get_overview() -> Result<EverydayOverviewDto, String> {
     everyday_overview()
+}
+
+#[tauri::command]
+fn everyday_get_overview_lite() -> Result<EverydayOverviewDto, String> {
+    everyday_overview_lite()
 }
 
 #[tauri::command]
@@ -369,6 +374,7 @@ pub fn run() {
             profiles_recover_crash,
             profiles_apply_restore_labeled_mock,
             everyday_get_overview,
+            everyday_get_overview_lite,
             everyday_apply_preset,
             everyday_restore_preset,
             everyday_apply_cleanup,
