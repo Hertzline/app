@@ -25,32 +25,32 @@ const metricValue = (metric) => {
 
 const formatMetric = (metric) => {
   if (!metric || !metric.status) {
-    return "n/d"
+    return "n/a"
   }
   if (metric.status === "available") {
     const unit = metric.unit ? ` ${metric.unit}` : ""
     return `${metric.value}${unit}`
   }
-  return "n/d"
+  return "n/a"
 }
 
 const formatTextMetric = (metric) => {
   if (!metric || metric.status !== "available") {
-    return "n/d"
+    return "n/a"
   }
   return metric.value
 }
 
 const formatSpread = (spread) => {
   if (!spread) {
-    return "n/d"
+    return "n/a"
   }
   return `mediana ${spread.median.toFixed(1)} (IQR ${spread.iqr.toFixed(1)}; ${spread.min.toFixed(1)}--${spread.max.toFixed(1)})`
 }
 
 const formatBytes = (value) => {
   if (value === undefined || value === null) {
-    return "n/d"
+    return "n/a"
   }
   if (value < 1024) {
     return `${value} B`
@@ -277,27 +277,27 @@ const paintHomeDash = (dash, score, message) => {
   ring.style.setProperty("--pct", score == null ? 0 : score)
   const inner = el("div", "score-ring__inner")
   inner.appendChild(el("span", "score-ring__value", score == null ? "--" : `${score}%`))
-  inner.appendChild(el("span", "score-ring__label", "salute"))
+  inner.appendChild(el("span", "score-ring__label", "health"))
   ring.appendChild(inner)
   dash.appendChild(ring)
   const side = el("div")
   side.appendChild(el("p", null, message))
   const cta = el("div", "cta-row")
   cta.appendChild(
-    button("Ottimizza ora", () => handleNavigate("actions"), {
-      ariaLabel: "Vai a Ottimizza",
+    button("Optimize now", () => handleNavigate("actions"), {
+      ariaLabel: "Go to Optimize",
       className: "btn btn-large",
     })
   )
   cta.appendChild(
-    button("Misura", () => handleNavigate("measure"), {
-      ariaLabel: "Vai a Misura",
+    button("Measure", () => handleNavigate("measure"), {
+      ariaLabel: "Go to Measure",
       className: "btn btn-large btn-secondary",
     })
   )
   cta.appendChild(
-    button("Verifica", () => handleNavigate("benchmark"), {
-      ariaLabel: "Vai a Verifica",
+    button("Verify", () => handleNavigate("benchmark"), {
+      ariaLabel: "Go to Verify",
       className: "btn btn-large btn-secondary",
     })
   )
@@ -310,17 +310,17 @@ const renderHome = async (root) => {
     el(
       "p",
       "lede",
-      "Parti da Ottimizza: attiva le 3 consigliate (Game Mode, piano prestazioni, Game Bar). Poi misura e verifica il guadagno reale."
+      "Start with Optimize: apply the 3 recommended tips (Game Mode, performance power plan, Game Bar). Then measure and verify the real gain."
     )
   )
-  const status = el("p", "status", "Pronto.")
+  const status = el("p", "status", "Ready.")
   status.setAttribute("role", "status")
   const dash = el("div", "panel hero-dash")
   const results = el("div", "results")
   paintHomeDash(
     dash,
     null,
-    "Un click su Ottimizza ora. Le modifiche sono spiegate e reversibili."
+    "Un click su Optimize now. Le modifiche sono spiegate e reversibili."
   )
   root.appendChild(status)
   root.appendChild(dash)
@@ -338,38 +338,38 @@ const renderHome = async (root) => {
       dash,
       score,
       score == null
-        ? "Score incompleto finche non misuri. Puoi comunque ottimizzare ora."
-        : `Score ${score}% da ${samples} indicatori reali. Non e un claim FPS.`
+        ? "Score incomplete until you measure. You can still optimize now."
+        : `Score ${score}% da ${samples} real indicators. Not an FPS claim.`
     )
     results.replaceChildren()
     const grid = el("div", "stat-grid")
     grid.appendChild(
       statTile(
-        "Alimentazione",
-        overview.power?.preset || (overview.power?.available ? "letta" : "n/d"),
-        overview.power?.available ? "Piano attuale" : "Non letto"
+        "Power plan",
+        overview.power?.preset || (overview.power?.available ? "letta" : "n/a"),
+        overview.power?.available ? "Current plan" : "Unread"
       )
     )
     if (lastMeasure) {
       grid.appendChild(
-        statTile("Ultima misura FPS", formatMetric(lastMeasure.session.frame.avg_fps))
+        statTile("Last measure FPS", formatMetric(lastMeasure.session.frame.avg_fps))
       )
       grid.appendChild(
-        statTile("Ultima misura CPU", formatMetric(lastMeasure.session.hardware.cpu_usage_percent))
+        statTile("Last measure CPU", formatMetric(lastMeasure.session.hardware.cpu_usage_percent))
       )
     } else {
-      grid.appendChild(statTile("Ultima misura", "ancora no", "Dopo Ottimizza"))
+      grid.appendChild(statTile("Last measure", "none yet", "After Optimize"))
     }
     results.appendChild(grid)
     status.textContent =
       score == null
-        ? "Vai su Ottimizza ora, poi Misura e Verifica."
-        : `Salute ${score}%. Prossimo passo: Ottimizza ora.`
+        ? "Vai su Optimize now, poi Measure e Verify."
+        : `Health ${score}%. Prossimo passo: Optimize now.`
   } catch (error) {
-    status.textContent = `Panoramica saltata (${error}). Ottimizza resta disponibile.`
+    status.textContent = `Overview skipped (${error}). Optimize is still available.`
     results.replaceChildren()
     results.appendChild(
-      el("p", "note", "Niente di bloccante: apri Ottimizza e applica le consigliate.")
+      el("p", "note", "Nothing blocking: open Optimize and apply the recommended pack.")
     )
   }
 }
@@ -379,7 +379,7 @@ const renderMeasure = (root) => {
     el(
       "p",
       "lede",
-      "Avvia una sessione locale. I sensori assenti restano n/d. Poi passa a Ottimizza."
+      "Run a local session. Missing sensors stay n/a. Then go to Optimize."
     )
   )
 
@@ -422,7 +422,7 @@ const renderMeasure = (root) => {
   results.id = "measure-results"
 
   const handleRun = async () => {
-    status.textContent = "Misurazione in corso..."
+    status.textContent = "Measuring..."
     results.replaceChildren()
     try {
       lastMeasure = await invoke("measure_run", {
@@ -438,8 +438,8 @@ const renderMeasure = (root) => {
       results.appendChild(renderMeasureCards(lastMeasure.session))
       const next = el("div", "cta-row")
       next.appendChild(
-        button("Continua: Ottimizza", () => handleNavigate("actions"), {
-          ariaLabel: "Vai a Ottimizza",
+        button("Continue: Optimize", () => handleNavigate("actions"), {
+          ariaLabel: "Go to Optimize",
           className: "btn btn-large",
         })
       )
@@ -470,7 +470,7 @@ const renderMeasure = (root) => {
       details.appendChild(exports)
       results.appendChild(details)
     } catch (error) {
-      status.textContent = `Misura fallita: ${error}`
+      status.textContent = `Measure failed: ${error}`
     }
   }
 
@@ -552,7 +552,7 @@ const renderBenchmark = async (root) => {
   measureMs.type = "number"
   measureMs.min = "1"
   measureMs.value = String(defaults.measure_ms)
-  measureMs.setAttribute("aria-label", "Misura millisecondi per pass")
+  measureMs.setAttribute("aria-label", "Measure millisecondi per pass")
 
   const passes = el("input")
   passes.type = "number"
@@ -570,7 +570,7 @@ const renderBenchmark = async (root) => {
   const advanced = el("details", "advanced")
   advanced.appendChild(el("summary", null, "Parametri e finestre frame (avanzato)"))
   advanced.appendChild(field("Warm-up (ms)", warmup))
-  advanced.appendChild(field("Misura per pass (ms)", measureMs))
+  advanced.appendChild(field("Measure per pass (ms)", measureMs))
   advanced.appendChild(field("Pass (>=3)", passes))
   advanced.appendChild(field("Finestre frame (JSON)", windowsInput))
   form.appendChild(advanced)
@@ -620,7 +620,7 @@ const renderBenchmark = async (root) => {
           el(
             "p",
             "note",
-            "Il guadagno non batte il rumore: valuta Ripristina tutto se hai applicato una modifica."
+            "Gain did not beat noise: consider Restore all if you applied a change."
           )
         )
       }
@@ -653,7 +653,7 @@ const renderBenchmark = async (root) => {
       status.textContent = `${phase} completato (${result.source}).`
       refreshResults()
     } catch (error) {
-      status.textContent = `${phase} fallito: ${error}`
+      status.textContent = `${phase} failed: ${error}`
     }
   }
 
@@ -670,7 +670,7 @@ const renderBenchmark = async (root) => {
       status.textContent = `Verdetto: ${lastVerdict.message}`
       refreshResults()
     } catch (error) {
-      status.textContent = `Confronto fallito: ${error}`
+      status.textContent = `Confronto failed: ${error}`
     }
   }
 
@@ -688,7 +688,7 @@ const renderBenchmark = async (root) => {
         "Mock etichettato completato. Sorgente labeled_mock -- non e una cattura live."
       refreshResults()
     } catch (error) {
-      status.textContent = `Mock fallito: ${error}`
+      status.textContent = `Mock failed: ${error}`
     }
   }
 
@@ -733,7 +733,7 @@ const renderExplanation = (parent, explanation) => {
     ["Effetto atteso", explanation.expected_effect],
     ["Rischio", explanation.risk],
     ["Come annullare", explanation.how_to_undo],
-    ["Misura locale", explanation.local_measurement],
+    ["Measure locale", explanation.local_measurement],
   ]
   for (const [label, value] of rows) {
     dl.appendChild(el("dt", null, label))
@@ -771,35 +771,35 @@ const actionPriority = (action) => {
   return score
 }
 
-const ACTION_IT = {
+const ACTION_EN = {
   "windows.game_mode": {
-    title: "Game Mode Windows",
-    blurb: "Dice a Windows di dare priorita al gioco. Di solito e la prima cosa da attivare.",
+    title: "Windows Game Mode",
+    blurb: "Tells Windows to prioritize the game. Usually the first tip to enable.",
   },
   "windows.power_plan": {
-    title: "Piano alimentazione Prestazioni",
-    blurb: "Passa al piano High Performance. Piu potenza, piu consumo.",
+    title: "High Performance power plan",
+    blurb: "Switches to the High Performance plan. More power, more draw.",
   },
   "windows.game_bar": {
-    title: "Disattiva Game Bar / capture",
-    blurb: "Riduce overlay e catture Xbox che possono rubare frame.",
+    title: "Turn off Game Bar / capture",
+    blurb: "Cuts Xbox overlay and capture that can steal frames.",
   },
   "windows.hags": {
-    title: "HAGS (scheduling GPU)",
-    blurb: "Scheduling GPU accelerato. Richiede elevazione.",
+    title: "HAGS (GPU scheduling)",
+    blurb: "Hardware-accelerated GPU scheduling. Needs elevation.",
   },
 }
 
 const RECOMMENDED_IDS = ["windows.game_mode", "windows.power_plan", "windows.game_bar"]
 
-const friendlyTitle = (action) => ACTION_IT[action.id]?.title || action.title
+const friendlyTitle = (action) => ACTION_EN[action.id]?.title || action.title
 
 const friendlyBlurb = (action) =>
-  ACTION_IT[action.id]?.blurb || action.explanation?.expected_effect || "Vedi dettagli."
+  ACTION_EN[action.id]?.blurb || action.explanation?.expected_effect || "See details."
 
 const stateChip = (state, actionId) => {
   if (!state) {
-    return { text: "stato n/d", className: "badge badge-muted" }
+    return { text: "state n/a", className: "badge badge-muted" }
   }
   const raw = state.toLowerCase()
   if (actionId === "windows.game_bar") {
@@ -815,7 +815,7 @@ const stateChip = (state, actionId) => {
 }
 
 const applyOne = async (action, status, opts = {}) => {
-  status.textContent = `Applico ${friendlyTitle(action)}…`
+  status.textContent = `Applying ${friendlyTitle(action)}…`
   const outcome = await invoke("actions_apply", {
     request: {
       id: action.id,
@@ -825,7 +825,7 @@ const applyOne = async (action, status, opts = {}) => {
     },
   })
   if (outcome.status === "elevation_required") {
-    status.textContent = `${friendlyTitle(action)}: serve conferma elevazione. Spunta la casella e riprova.`
+    status.textContent = `${friendlyTitle(action)}: needs elevation confirm. Check the box and retry.`
     return outcome
   }
   if (outcome.status === "confirm_destructive") {
@@ -836,7 +836,7 @@ const applyOne = async (action, status, opts = {}) => {
     status.textContent = `OK ${friendlyTitle(action)}: ${outcome.before} → ${outcome.after}`
     return outcome
   }
-  status.textContent = `Fallito ${friendlyTitle(action)}: ${outcome.detail || outcome.message || "?"}`
+  status.textContent = `Failed ${friendlyTitle(action)}: ${outcome.detail || outcome.message || "?"}`
   return outcome
 }
 
@@ -846,11 +846,11 @@ const renderActions = async (root) => {
     el(
       "p",
       "lede",
-      "Tre consigliate per questo PC. Applicarle e reversibile. Dopo, vai su Verifica."
+      "Three recommendations for this PC. Applying them is reversible. Then go to Verify."
     )
   )
 
-  const status = el("p", "status", "Scegli Applica tutto oppure una sola azione.")
+  const status = el("p", "status", "Choose Apply all or a single action.")
   status.setAttribute("role", "status")
 
   const hostActions = catalog.actions.filter((a) => a.host_status === "available")
@@ -860,12 +860,12 @@ const renderActions = async (root) => {
   const otherActions = catalog.actions.filter((a) => a.host_status !== "available")
 
   const pack = el("div", "panel optimize-pack")
-  pack.appendChild(el("h2", null, "Consigliate (1 click)"))
+  pack.appendChild(el("h2", null, "Recommended (1 click)"))
   pack.appendChild(
     el(
       "p",
       "muted",
-      "Game Mode + piano Prestazioni + Game Bar off. Niente FPS inventati: verifica dopo con Misura/Verifica."
+      "Game Mode + performance plan + Game Bar off. No invented FPS: verify afterward with Measure/Verify."
     )
   )
 
@@ -876,7 +876,7 @@ const renderActions = async (root) => {
   const elevAllLabel = el("label", "check")
   elevAllLabel.appendChild(elevAll)
   elevAllLabel.appendChild(
-    document.createTextNode("Se Windows chiede admin, confermo l'elevazione solo per queste azioni.")
+    document.createTextNode("If Windows asks for admin, I confirm elevation only for these actions.")
   )
   pack.appendChild(elevAllLabel)
 
@@ -888,20 +888,20 @@ const renderActions = async (root) => {
     left.appendChild(el("p", "muted", friendlyBlurb(action)))
     if (action.current_state) {
       const chip = stateChip(action.current_state, action.id)
-      left.appendChild(el("span", chip.className, `Ora: ${chip.text}`))
+      left.appendChild(el("span", chip.className, `Now: ${chip.text}`))
     }
     row.appendChild(left)
     row.appendChild(
       button(
-        "Applica",
+        "Apply",
         async () => {
           try {
             await applyOne(action, status, { confirmElevation: elevAll.checked })
           } catch (error) {
-            status.textContent = `Errore: ${error}`
+            status.textContent = `Error: ${error}`
           }
         },
-        { ariaLabel: `Applica ${friendlyTitle(action)}`, className: "btn" }
+        { ariaLabel: `Apply ${friendlyTitle(action)}`, className: "btn" }
       )
     )
     list.appendChild(row)
@@ -911,13 +911,13 @@ const renderActions = async (root) => {
   const packRow = el("div", "cta-row")
   packRow.appendChild(
     button(
-      "Applica tutte e 3",
+      "Apply all 3",
       async () => {
         if (!recommended.length) {
-          status.textContent = "Nessuna consigliata disponibile su questo OS."
+          status.textContent = "No recommended actions available on this OS."
           return
         }
-        status.textContent = "Applico le 3 consigliate…"
+        status.textContent = "Applying le 3 consigliate…"
         for (const action of recommended) {
           try {
             const outcome = await applyOne(action, status, {
@@ -927,24 +927,24 @@ const renderActions = async (root) => {
               return
             }
           } catch (error) {
-            status.textContent = `Errore su ${friendlyTitle(action)}: ${error}`
+            status.textContent = `Error on ${friendlyTitle(action)}: ${error}`
             return
           }
         }
-        status.textContent = "Consigliate applicate. Ora Misura, poi Verifica."
+        status.textContent = "Recommended pack applied. Now Measure, then Verify."
       },
-      { ariaLabel: "Applica tutte le consigliate", className: "btn btn-large" }
+      { ariaLabel: "Apply all recommended", className: "btn btn-large" }
     )
   )
   packRow.appendChild(
-    button("Poi: Verifica guadagno", () => handleNavigate("benchmark"), {
-      ariaLabel: "Vai a Verifica",
+    button("Next: Verify gain", () => handleNavigate("benchmark"), {
+      ariaLabel: "Go to Verify",
       className: "btn btn-large btn-secondary",
     })
   )
   packRow.appendChild(
-    button("Misura prima", () => handleNavigate("measure"), {
-      ariaLabel: "Vai a Misura",
+    button("Measure first", () => handleNavigate("measure"), {
+      ariaLabel: "Go to Measure",
       className: "btn btn-secondary",
     })
   )
@@ -953,14 +953,14 @@ const renderActions = async (root) => {
   root.appendChild(status)
 
   const advanced = el("details", "advanced")
-  advanced.appendChild(el("summary", null, `Altre azioni su questo PC (${rest.length})`))
+  advanced.appendChild(el("summary", null, `More actions on this PC (${rest.length})`))
   for (const action of rest) {
     const panel = el("div", "panel action-card")
     panel.appendChild(el("h2", null, friendlyTitle(action)))
     panel.appendChild(el("p", "muted", action.id))
     panel.appendChild(el("p", null, friendlyBlurb(action)))
     if (action.current_state) {
-      panel.appendChild(el("p", null, `Stato: ${action.current_state}`))
+      panel.appendChild(el("p", null, `State: ${action.current_state}`))
     }
     renderExplanation(panel, action.explanation)
 
@@ -994,7 +994,7 @@ const renderActions = async (root) => {
     if (action.exposes_switch || action.kind === "report" || action.kind === "destructive") {
       panel.appendChild(
         button(
-          action.kind === "report" ? "Aggiorna" : "Applica",
+          action.kind === "report" ? "Refresh" : "Apply",
           async () => {
             try {
               await applyOne(action, status, {
@@ -1003,10 +1003,10 @@ const renderActions = async (root) => {
                 input: input.value.trim() || null,
               })
             } catch (error) {
-              status.textContent = `Errore: ${error}`
+              status.textContent = `Error: ${error}`
             }
           },
-          { ariaLabel: `Applica ${friendlyTitle(action)}` }
+          { ariaLabel: `Apply ${friendlyTitle(action)}` }
         )
       )
     }
@@ -1032,7 +1032,7 @@ const renderProfiles = async (root) => {
     el(
       "p",
       "lede",
-      "Profili per gioco: applicano un set di azioni all'avvio e ripristinano tutto all'uscita."
+      "Built-in desk modes plus per-game profiles. Modes set the OS power plan and adapt when you plug in or unplug."
     )
   )
   const status = el("p", "status", "")
@@ -1042,59 +1042,112 @@ const renderProfiles = async (root) => {
   const refresh = async () => {
     results.replaceChildren()
     try {
+      const modes = await invoke("modes_get_overview")
+      const modesPack = el("div", "panel optimize-pack")
+      modesPack.appendChild(el("h2", null, "Base modes"))
+      modesPack.appendChild(el("p", "muted", modes.note))
+      modesPack.appendChild(
+        el("p", null, `Power: ${modes.power_source.label}. ${modes.power_source.note}`)
+      )
+      const modeList = el("div", "rec-list")
+      for (const mode of modes.modes) {
+        const row = el("div", "rec-row")
+        const left = el("div")
+        left.appendChild(el("p", "rec-title", mode.title))
+        left.appendChild(el("p", "muted", mode.blurb))
+        left.appendChild(
+          el(
+            "p",
+            "muted",
+            `Plan now: ${mode.resolved_preset}${mode.adapts_to_power ? " (adapts to AC/battery)" : ""}`
+          )
+        )
+        left.appendChild(el("p", "muted", mode.fans_note))
+        if (mode.active) {
+          left.appendChild(el("span", "badge", "Active"))
+        }
+        row.appendChild(left)
+        row.appendChild(
+          button(
+            mode.active ? "Re-apply" : "Apply mode",
+            async () => {
+              status.textContent = `Applying ${mode.title}…`
+              try {
+                const outcome = await invoke("modes_apply", { request: { id: mode.id } })
+                if (outcome.status === "applied") {
+                  status.textContent = `${mode.title} applied → ${outcome.preset} (${outcome.power_source}).`
+                  await refresh()
+                } else {
+                  status.textContent = `Failed: ${outcome.detail}`
+                }
+              } catch (error) {
+                status.textContent = `Error: ${error}`
+              }
+            },
+            {
+              ariaLabel: `Apply ${mode.title} mode`,
+              className: mode.active ? "btn btn-secondary" : "btn",
+            }
+          )
+        )
+        modeList.appendChild(row)
+      }
+      modesPack.appendChild(modeList)
+      results.appendChild(modesPack)
+
       profilesState = await invoke("profiles_get_overview")
       results.appendChild(el("p", "note", profilesState.note))
 
       const activePanel = el("div", "panel")
-      activePanel.appendChild(el("h2", null, "Sessione attiva"))
+      activePanel.appendChild(el("h2", null, "Active game session"))
       if (profilesState.active.active) {
         activePanel.appendChild(
           el(
             "p",
             null,
-            `${profilesState.active.name} (${profilesState.active.game_key}) · fase ${profilesState.active.phase}`
+            `${profilesState.active.name} (${profilesState.active.game_key}) · phase ${profilesState.active.phase}`
           )
         )
         activePanel.appendChild(
-          el("p", "muted", `Azioni: ${profilesState.active.action_ids.join(", ") || "(nessuna)"}`)
+          el("p", "muted", `Actions: ${profilesState.active.action_ids.join(", ") || "(none)"}`)
         )
         activePanel.appendChild(
           button(
-            "Ripristina all'uscita",
+            "Restore on exit",
             async () => {
-              status.textContent = "Ripristino profilo…"
+              status.textContent = "Restoring profile…"
               try {
                 const outcome = await invoke("profiles_restore", { labeledMock: false })
                 status.textContent =
                   outcome.status === "restored"
-                    ? `Ripristinato ${outcome.name}.`
-                    : `Ripristino fallito: ${outcome.detail}`
+                    ? `Restored ${outcome.name}.`
+                    : `Restore failed: ${outcome.detail}`
                 await refresh()
               } catch (error) {
-                status.textContent = `Ripristino fallito: ${error}`
+                status.textContent = `Restore failed: ${error}`
               }
             },
-            { ariaLabel: "Ripristina profilo attivo" }
+            { ariaLabel: "Restore active profile" }
           )
         )
       } else {
-        activePanel.appendChild(el("p", "muted", "Nessuna sessione profilo attiva."))
+        activePanel.appendChild(el("p", "muted", "No active game profile session."))
       }
       results.appendChild(activePanel)
 
       const manualPanel = el("div", "panel")
-      manualPanel.appendChild(el("h2", null, "Aggiungi percorso manuale"))
+      manualPanel.appendChild(el("h2", null, "Add manual path"))
       const nameInput = el("input")
       nameInput.type = "text"
-      nameInput.setAttribute("aria-label", "Nome gioco")
+      nameInput.setAttribute("aria-label", "Game name")
       const pathInput = el("input")
       pathInput.type = "text"
-      pathInput.setAttribute("aria-label", "Percorso installazione")
-      manualPanel.appendChild(field("Nome gioco", nameInput))
-      manualPanel.appendChild(field("Percorso", pathInput))
+      pathInput.setAttribute("aria-label", "Install path")
+      manualPanel.appendChild(field("Game name", nameInput))
+      manualPanel.appendChild(field("Path", pathInput))
       manualPanel.appendChild(
         button(
-          "Aggiungi",
+          "Add",
           async () => {
             try {
               profilesState = await invoke("profiles_add_manual", {
@@ -1103,23 +1156,23 @@ const renderProfiles = async (root) => {
                   install_path: pathInput.value,
                 },
               })
-              status.textContent = "Percorso aggiunto."
+              status.textContent = "Path added."
               nameInput.value = ""
               pathInput.value = ""
               await refresh()
             } catch (error) {
-              status.textContent = `Errore: ${error}`
+              status.textContent = `Error: ${error}`
             }
           },
-          { ariaLabel: "Aggiungi percorso manuale" }
+          { ariaLabel: "Add manual path" }
         )
       )
       results.appendChild(manualPanel)
 
-      results.appendChild(el("h2", null, `Giochi rilevati (${profilesState.games.length})`))
+      results.appendChild(el("h2", null, `Detected games (${profilesState.games.length})`))
       if (!profilesState.games.length) {
         results.appendChild(
-          el("p", "muted", "Nessun gioco trovato. Aggiungi un percorso o installa un launcher supportato.")
+          el("p", "muted", "No games found. Add a path or install a supported launcher.")
         )
       }
       for (const game of profilesState.games) {
@@ -1137,13 +1190,13 @@ const renderProfiles = async (root) => {
         const actionsInput = el("input")
         actionsInput.type = "text"
         actionsInput.value = existing.action_ids.join(", ")
-        actionsInput.setAttribute("aria-label", `ID azioni per ${game.name}`)
-        actionsInput.placeholder = "id azioni, separati da virgola"
-        panel.appendChild(field("Azioni profilo", actionsInput))
+        actionsInput.setAttribute("aria-label", `Action IDs for ${game.name}`)
+        actionsInput.placeholder = "action ids, comma-separated"
+        panel.appendChild(field("Profile actions", actionsInput))
         const row = el("div", "actions-row")
         row.appendChild(
           button(
-            "Salva profilo",
+            "Save profile",
             async () => {
               try {
                 const actionIds = actionsInput.value
@@ -1157,18 +1210,18 @@ const renderProfiles = async (root) => {
                     action_ids: actionIds,
                   },
                 })
-                status.textContent = `Profilo salvato per ${game.name}.`
+                status.textContent = `Saved profile for ${game.name}.`
                 await refresh()
               } catch (error) {
-                status.textContent = `Salvataggio fallito: ${error}`
+                status.textContent = `Save failed: ${error}`
               }
             },
-            { ariaLabel: `Salva profilo ${game.name}`, className: "btn btn-secondary" }
+            { ariaLabel: `Save profile ${game.name}`, className: "btn btn-secondary" }
           )
         )
         row.appendChild(
           button(
-            "Applica all'avvio",
+            "Apply on launch",
             async () => {
               try {
                 const outcome = await invoke("profiles_apply", {
@@ -1176,27 +1229,27 @@ const renderProfiles = async (root) => {
                 })
                 status.textContent =
                   outcome.status === "applied"
-                    ? `Applicato ${outcome.name}`
-                    : `Fallito: ${outcome.detail}`
+                    ? `Applied ${outcome.name}`
+                    : `Failed: ${outcome.detail}`
                 await refresh()
               } catch (error) {
-                status.textContent = `Apply fallito: ${error}`
+                status.textContent = `Apply failed: ${error}`
               }
             },
-            { ariaLabel: `Applica profilo ${game.name}` }
+            { ariaLabel: `Apply profile ${game.name}` }
           )
         )
         panel.appendChild(row)
         results.appendChild(panel)
       }
-      status.textContent = `${profilesState.games.length} giochi, ${profilesState.profiles.length} profili.`
+      status.textContent = `${profilesState.games.length} games, ${profilesState.profiles.length} profiles.`
     } catch (error) {
-      status.textContent = `Profili falliti: ${error}`
+      status.textContent = `Profiles failed: ${error}`
     }
   }
 
   root.appendChild(
-    button("Aggiorna giochi e profili", refresh, { ariaLabel: "Aggiorna profili" })
+    button("Refresh games and profiles", refresh, { ariaLabel: "Refresh profiles" })
   )
   root.appendChild(status)
   root.appendChild(results)
@@ -1205,7 +1258,7 @@ const renderProfiles = async (root) => {
 
 const renderChangelog = async (root) => {
   root.appendChild(
-    el("p", "lede", "Cronologia locale: tempo, azione, before/after, stato ripristino.")
+    el("p", "lede", "Local history: time, action, before/after, restore status.")
   )
   const status = el("p", "status", "")
   status.setAttribute("role", "status")
@@ -1216,15 +1269,15 @@ const renderChangelog = async (root) => {
     try {
       const rows = await invoke("actions_change_log")
       if (!rows.length) {
-        results.appendChild(el("p", "muted", "Nessuna modifica registrata."))
-        status.textContent = "Cronologia vuota."
+        results.appendChild(el("p", "muted", "No changes recorded."))
+        status.textContent = "History empty."
         return
       }
       const table = el("table", "metrics")
-      table.setAttribute("aria-label", "Cronologia modifiche")
+      table.setAttribute("aria-label", "Change history")
       const head = document.createElement("thead")
       const hr = document.createElement("tr")
-      for (const label of ["ID", "Tempo", "Azione", "Before", "After", "Stato", ""]) {
+      for (const label of ["ID", "Time", "Action", "Before", "After", "Status", ""]) {
         hr.appendChild(el("th", null, label))
       }
       head.appendChild(hr)
@@ -1242,17 +1295,17 @@ const renderChangelog = async (root) => {
         if (row.restore_status === "outstanding") {
           cell.appendChild(
             button(
-              "Ripristina",
+              "Restore",
               async () => {
                 try {
                   const updated = await invoke("actions_restore_entry", { entryId: row.id })
-                  status.textContent = `Ripristinato ${updated.id}.`
+                  status.textContent = `Restoreto ${updated.id}.`
                   await refresh()
                 } catch (error) {
-                  status.textContent = `Ripristino fallito: ${error}`
+                  status.textContent = `Restore failed: ${error}`
                 }
               },
-              { ariaLabel: `Ripristina ${row.id}`, className: "btn btn-secondary" }
+              { ariaLabel: `Restore ${row.id}`, className: "btn btn-secondary" }
             )
           )
         }
@@ -1261,13 +1314,13 @@ const renderChangelog = async (root) => {
       }
       table.appendChild(body)
       results.appendChild(table)
-      status.textContent = `${rows.length} voci.`
+      status.textContent = `${rows.length} entries.`
     } catch (error) {
-      status.textContent = `Cronologia fallita: ${error}`
+      status.textContent = `History failed: ${error}`
     }
   }
 
-  root.appendChild(button("Aggiorna", refresh, { ariaLabel: "Aggiorna cronologia" }))
+  root.appendChild(button("Refresh", refresh, { ariaLabel: "Refresh history" }))
   root.appendChild(status)
   root.appendChild(results)
   await refresh()
@@ -1278,7 +1331,7 @@ const renderRestoreAll = async (root) => {
     el(
       "p",
       "lede",
-      "Ripristina tutte le modifiche Hertzline ancora aperte. Stesso percorso usato da crash recovery e disinstallazione."
+      "Restore tutte le modifiche Hertzline ancora aperte. Stesso percorso usato da crash recovery e disinstallazione."
     )
   )
   const status = el("p", "status", "")
@@ -1287,23 +1340,23 @@ const renderRestoreAll = async (root) => {
 
   root.appendChild(
     button(
-      "Ripristina tutto",
+      "Restore tutto",
       async () => {
-        status.textContent = "Ripristino in corso…"
+        status.textContent = "Restoring…"
         results.replaceChildren()
         try {
           const report = await invoke("actions_restore_all")
-          status.textContent = `Ripristino ${report.status} (ok=${report.ok}).`
+          status.textContent = `Restore ${report.status} (ok=${report.ok}).`
           const list = el("ul", "cap-list")
           for (const item of report.items) {
             list.appendChild(el("li", null, item))
           }
           results.appendChild(list)
         } catch (error) {
-          status.textContent = `Ripristino fallito: ${error}`
+          status.textContent = `Restore failed: ${error}`
         }
       },
-      { ariaLabel: "Ripristina tutte le modifiche", className: "btn btn-large" }
+      { ariaLabel: "Restore tutte le modifiche", className: "btn btn-large" }
     )
   )
   root.appendChild(status)
@@ -1315,16 +1368,16 @@ const renderEveryday = async (root) => {
     el(
       "p",
       "lede",
-      "Modalita quotidiana: avvio, processi pesanti, alimentazione, pulizia disco, termiche, report settimanale."
+      "Everyday mode: startup, heavy processes, power, disk cleanup, thermal, weekly report."
     )
   )
-  const status = el("p", "status", "Carico...")
+  const status = el("p", "status", "Loading...")
   const results = el("div", "results")
   root.appendChild(status)
   root.appendChild(results)
 
   const refresh = async () => {
-    status.textContent = "Aggiorno..."
+    status.textContent = "Refreshing..."
     results.replaceChildren()
     try {
       const overview = await withTimeout(
@@ -1335,28 +1388,28 @@ const renderEveryday = async (root) => {
       homeCache = overview
       const { score } = scoreFromOverview(overview, lastMeasure)
       results.appendChild(
-        statTile("Salute stimata", score == null ? "n/d" : `${score}%`, "Da indicatori reali")
+        statTile("Estimated health", score == null ? "n/a" : `${score}%`, "From real indicators")
       )
       results.appendChild(el("p", "note", overview.local_measurement_note))
 
-      results.appendChild(el("h2", null, "Impatto avvio"))
+      results.appendChild(el("h2", null, "Startup impact"))
       const list = el("ul", "list")
       for (const row of overview.startup.rows) {
         list.appendChild(
           el(
             "li",
             null,
-            `${row.name} · ${row.enabled ? "attivo" : "disattivo"} · ${row.impact_summary}`
+            `${row.name} · ${row.enabled ? "enabled" : "disabled"} · ${row.impact_summary}`
           )
         )
       }
       if (!overview.startup.rows.length) {
-        results.appendChild(el("p", "muted", "Nessuna voce avvio."))
+        results.appendChild(el("p", "muted", "No startup entries."))
       } else {
         results.appendChild(list)
       }
 
-      results.appendChild(el("h2", null, "Processi pesanti"))
+      results.appendChild(el("h2", null, "Heavy processes"))
       const hogList = el("ul", "list")
       for (const hog of overview.hogs.hogs) {
         hogList.appendChild(
@@ -1369,59 +1422,59 @@ const renderEveryday = async (root) => {
       }
       results.appendChild(hogList)
 
-      results.appendChild(el("h2", null, "Profilo alimentazione"))
+      results.appendChild(el("h2", null, "Power profile"))
       results.appendChild(
         el(
           "p",
           null,
           overview.power.available
-            ? `Attuale: ${overview.power.preset || "sconosciuto"}`
+            ? `Current: ${overview.power.preset || "unknown"}`
             : overview.power.message
         )
       )
       if (overview.power.available) {
         for (const [id, label] of [
-          ["battery_saver", "Risparmio"],
-          ["balanced", "Bilanciato"],
-          ["performance", "Prestazioni"],
+          ["battery_saver", "Battery saver"],
+          ["balanced", "Balanced"],
+          ["performance", "Performance"],
         ]) {
           results.appendChild(
             button(
-              `Applica ${label}`,
+              `Apply ${label}`,
               async () => {
                 const outcome = await invoke("everyday_apply_preset", {
                   request: { preset: id },
                 })
                 status.textContent =
                   outcome.status === "applied"
-                    ? `Preset applicato (${outcome.entry_id}).`
+                    ? `Preset applied (${outcome.entry_id}).`
                     : `Fallito: ${outcome.detail}`
                 await refresh()
               },
-              { ariaLabel: `Applica ${label}` }
+              { ariaLabel: `Apply ${label}` }
             )
           )
         }
       }
 
-      results.appendChild(el("h2", null, "Pulizia disco (anteprima)"))
+      results.appendChild(el("h2", null, "Disk cleanup (preview)"))
       results.appendChild(
-        el("p", null, `Totale anteprima: ${formatBytes(overview.cleanup.total_bytes)}`)
+        el("p", null, `Preview total: ${formatBytes(overview.cleanup.total_bytes)}`)
       )
       results.appendChild(
         button(
-          "Elimina file in anteprima",
+          "Delete previewed files",
           async () => {
             const outcome = await invoke("everyday_apply_cleanup", {
               request: { confirm: true },
             })
             status.textContent =
               outcome.status === "applied"
-                ? `Rimossi ${formatBytes(outcome.bytes_removed)}.`
+                ? `Removed ${formatBytes(outcome.bytes_removed)}.`
                 : outcome.message || outcome.detail
             await refresh()
           },
-          { ariaLabel: "Conferma pulizia disco" }
+          { ariaLabel: "Confirm disk cleanup" }
         )
       )
 
@@ -1430,17 +1483,17 @@ const renderEveryday = async (root) => {
         el(
           "p",
           null,
-          `Livello ${overview.thermal.level}. CPU ${overview.thermal.cpu_temp_celsius ?? "n/d"} / GPU ${overview.thermal.gpu_temp_celsius ?? "n/d"} C`
+          `Livello ${overview.thermal.level}. CPU ${overview.thermal.cpu_temp_celsius ?? "n/a"} / GPU ${overview.thermal.gpu_temp_celsius ?? "n/a"} C`
         )
       )
       status.textContent = "Panoramica quotidiana pronta."
     } catch (error) {
-      status.textContent = `Errore: ${error}`
+      status.textContent = `Error: ${error}`
     }
   }
 
   root.appendChild(
-    button("Aggiorna", refresh, { ariaLabel: "Aggiorna quotidiano", className: "btn btn-large" })
+    button("Refresh", refresh, { ariaLabel: "Refresh everyday", className: "btn btn-large" })
   )
   await refresh()
 }
@@ -1453,7 +1506,7 @@ const renderOverlay = async (root) => {
       "Overlay FPS/frame-time opzionale. Mai injection nel gioco. Off di default con anti-cheat."
     )
   )
-  const status = el("p", "status", "Carico...")
+  const status = el("p", "status", "Loading...")
   const results = el("div", "results")
   root.appendChild(status)
   root.appendChild(results)
@@ -1473,7 +1526,7 @@ const renderOverlay = async (root) => {
 
   const applyOverview = (overview) => {
     status.textContent = overview.decision_enabled
-      ? `Overlay attivo (${overview.method_id})`
+      ? `Overlay enabled (${overview.method_id})`
       : `Overlay off (${overview.block_reason || "preferenza"})`
     results.replaceChildren()
     results.appendChild(el("p", null, overview.note))
@@ -1496,7 +1549,7 @@ const renderOverlay = async (root) => {
       el(
         "p",
         null,
-        `Pannello: ${panel.status}; FPS ${panel.avg_fps ?? "n/d"}; frame ${panel.avg_frame_time_ms ?? "n/d"} ms.`
+        `Pannello: ${panel.status}; FPS ${panel.avg_fps ?? "n/a"}; frame ${panel.avg_frame_time_ms ?? "n/a"} ms.`
       )
     )
     enabledInput.checked = overview.settings.user_enabled && !overview.settings.globally_disabled
@@ -1510,7 +1563,7 @@ const renderOverlay = async (root) => {
       })
       applyOverview(overview)
     } catch (error) {
-      status.textContent = `Errore: ${error}`
+      status.textContent = `Error: ${error}`
     }
   }
 
@@ -1540,10 +1593,10 @@ const renderOverlay = async (root) => {
           })
           applyOverview(overview)
         } catch (error) {
-          status.textContent = `Salvataggio fallito: ${error}`
+          status.textContent = `Salvataggio failed: ${error}`
         }
       },
-      { ariaLabel: "Salva overlay" }
+      { ariaLabel: "Save overlay" }
     )
   )
   row.appendChild(
@@ -1553,13 +1606,13 @@ const renderOverlay = async (root) => {
         try {
           applyOverview(await invoke("overlay_disable_globally"))
         } catch (error) {
-          status.textContent = `Errore: ${error}`
+          status.textContent = `Error: ${error}`
         }
       },
       { ariaLabel: "Disattiva overlay globalmente", className: "btn btn-secondary" }
     )
   )
-  row.appendChild(button("Aggiorna", refresh, { ariaLabel: "Aggiorna overlay" }))
+  row.appendChild(button("Refresh", refresh, { ariaLabel: "Refresh overlay" }))
   root.appendChild(row)
   await refresh()
 }
@@ -1613,10 +1666,10 @@ const renderRoute = async (routes, info) => {
       return
     }
     body.replaceChildren()
-    body.appendChild(el("p", "status", `Errore pagina: ${error}`))
+    body.appendChild(el("p", "status", `Page error: ${error}`))
     body.appendChild(
-      button("Riprova", () => handleNavigate(activeId), {
-        ariaLabel: "Riprova pagina",
+      button("Retry", () => handleNavigate(activeId), {
+        ariaLabel: "Retry page",
         className: "btn",
       })
     )
@@ -1625,7 +1678,7 @@ const renderRoute = async (routes, info) => {
     return
   }
   document.querySelector("#meta").textContent =
-    `Shell non privilegiata v${info.app_version} (core ${info.core_version}). Nessuna elevazione all'avvio.`
+    `Unprivileged shell v${info.app_version} (core ${info.core_version}). No elevation at startup.`
   document.querySelector("#main").focus({ preventScroll: true })
 }
 
@@ -1659,7 +1712,7 @@ window.addEventListener("DOMContentLoaded", async () => {
   } catch (error) {
     if (body) {
       body.replaceChildren()
-      body.appendChild(el("p", "status", `Avvio fallito: ${error}`))
+      body.appendChild(el("p", "status", `Startup failed: ${error}`))
     }
   }
 })

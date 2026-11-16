@@ -20,6 +20,9 @@ use hertzline_app::everyday_ui::{
     CleanupOutcomeDto, EverydayOverviewDto, PresetOutcomeDto, WeeklyReportDto,
 };
 use hertzline_app::measure::{run_measurement, MeasureRequest, MeasureResult};
+use hertzline_app::modes_ui::{
+    apply_desk_mode, modes_overview, ApplyModeRequest, ModeApplyOutcomeDto, ModesOverviewDto,
+};
 use hertzline_app::overlay_ui::{
     disable_overlay_globally, labeled_mock_panel_fps, overlay_overview, save_overlay_settings,
     scan_anti_cheat, OverlayOverviewDto, OverlayPanelDto, OverlayScanRequest,
@@ -161,6 +164,16 @@ fn profiles_recover_crash() -> Result<bool, String> {
 fn profiles_apply_restore_labeled_mock(
 ) -> Result<(ProfileApplyOutcomeDto, ProfileApplyOutcomeDto), String> {
     apply_restore_labeled_mock()
+}
+
+#[tauri::command]
+fn modes_get_overview() -> ModesOverviewDto {
+    modes_overview()
+}
+
+#[tauri::command]
+fn modes_apply(request: ApplyModeRequest) -> ModeApplyOutcomeDto {
+    apply_desk_mode(request)
 }
 
 #[tauri::command]
@@ -373,6 +386,8 @@ pub fn run() {
             profiles_restore,
             profiles_recover_crash,
             profiles_apply_restore_labeled_mock,
+            modes_get_overview,
+            modes_apply,
             everyday_get_overview,
             everyday_get_overview_lite,
             everyday_apply_preset,

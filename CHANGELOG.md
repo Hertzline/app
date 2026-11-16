@@ -4,6 +4,18 @@ All notable changes to the Hertzline desktop app are recorded here.
 The website `/changelog/` mirrors release highlights from `releases.json`
 after a signed public release is published.
 
+## [1.0.7] - 2026-11-16
+
+### Added
+
+- Base desk modes: Study, Programming, Performance (AC/battery aware power plans)
+- Power source probe (plugged in vs on battery)
+
+### Changed
+
+- Full English UI (shell + pages)
+- Profiles page leads with base modes; per-game profiles stay below
+
 ## [1.0.6] - 2026-11-16
 
 ### Fixed

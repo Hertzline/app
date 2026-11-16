@@ -49,15 +49,15 @@ impl AppRoute {
 
     pub const fn title(self) -> &'static str {
         match self {
-            Self::Home => "Inizio",
-            Self::Measure => "Misura",
-            Self::Benchmark => "Verifica",
-            Self::Actions => "Ottimizza",
-            Self::Profiles => "Profili",
-            Self::Everyday => "Quotidiano",
+            Self::Home => "Home",
+            Self::Measure => "Measure",
+            Self::Benchmark => "Verify",
+            Self::Actions => "Optimize",
+            Self::Profiles => "Profiles",
+            Self::Everyday => "Everyday",
             Self::Overlay => "Overlay",
-            Self::Changelog => "Cronologia",
-            Self::RestoreAll => "Ripristina tutto",
+            Self::Changelog => "History",
+            Self::RestoreAll => "Restore all",
         }
     }
 

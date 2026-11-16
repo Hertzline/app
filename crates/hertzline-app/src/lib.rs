@@ -9,6 +9,7 @@ pub mod actions_ui;
 pub mod benchmark_ui;
 pub mod everyday_ui;
 pub mod measure;
+pub mod modes_ui;
 pub mod overlay_ui;
 pub mod profile_host;
 pub mod profiles_ui;
@@ -36,6 +37,10 @@ pub use everyday_ui::{
 pub use measure::{
     explanation_with_evidence, run_measurement, MeasureRequest, MeasureResult,
     NO_LOCAL_ACTION_MEASUREMENT,
+};
+pub use modes_ui::{
+    apply_desk_mode, modes_overview, ApplyModeRequest, DeskModeDto, ModeApplyOutcomeDto,
+    ModesOverviewDto, PowerSourceDto,
 };
 pub use overlay_ui::{
     disable_overlay_globally, labeled_mock_panel_fps, overlay_overview, save_overlay_settings,
