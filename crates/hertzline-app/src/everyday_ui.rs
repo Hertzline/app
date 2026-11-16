@@ -239,24 +239,28 @@ mod lite_tests {
     }
 }
 
-/// Fast Home dashboard: skip process hog refresh + disk cleanup walks.
+/// Fast Home dashboard: thermal + power only (startup/hogs/cleanup deferred).
 pub fn everyday_overview_lite() -> Result<EverydayOverviewDto, String> {
-    let startup = list_startup_impact().map_err(|e| e.to_string())?;
     let power = read_power_preset();
     let mut hw = SysinfoHardwareSampler::new();
     let thermal = assess_thermal(&hw.sample());
     Ok(EverydayOverviewDto {
         local_measurement_note: crate::measure::NO_LOCAL_ACTION_MEASUREMENT.to_string(),
-        startup: map_startup(startup),
+        startup: StartupImpactDto {
+            host_os: std::env::consts::OS.into(),
+            source: "deferred".into(),
+            note: "Elenco avvio completo in Quotidiano.".into(),
+            rows: Vec::new(),
+        },
         hogs: ResourceHogsDto {
             host_os: std::env::consts::OS.into(),
-            note: "Home lite: process hog scan deferred to Quotidiano (full refresh).".into(),
+            note: "Scan processi in Quotidiano.".into(),
             hogs: Vec::new(),
         },
         power,
         cleanup: CleanupPreviewDto {
             host_os: std::env::consts::OS.into(),
-            note: "Home lite: disk cleanup preview deferred to Quotidiano.".into(),
+            note: "Anteprima disco in Quotidiano.".into(),
             total_bytes: 0,
             entries: Vec::new(),
         },
@@ -264,7 +268,7 @@ pub fn everyday_overview_lite() -> Result<EverydayOverviewDto, String> {
         weekly: WeeklyReportDto {
             window_start_unix_ms: 0,
             window_end_unix_ms: 0,
-            note: "Home lite: weekly report deferred to Quotidiano.".into(),
+            note: "Report settimanale in Quotidiano.".into(),
             measurements: Vec::new(),
             applied_actions: Vec::new(),
             rollbacks: Vec::new(),

@@ -4,6 +4,14 @@ All notable changes to the Hertzline desktop app are recorded here.
 The website `/changelog/` mirrors release highlights from `releases.json`
 after a signed public release is published.
 
+## [1.0.5] - 2026-11-16
+
+### Changed
+
+- Optimize leads with a 3-tip recommended pack and Apply-all (Game Mode, power plan, Game Bar)
+- Home leads with Ottimizza; lite overview no longer waits on startup listing
+- Nav order: Home → Ottimizza → Misura → Verifica
+
 ## [1.0.4] - 2026-11-16
 
 ### Changed

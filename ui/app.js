@@ -171,17 +171,27 @@ const scoreFromOverview = (overview, measure) => {
     const t = thermal.cpu_temp_celsius
     parts.push(t >= 90 ? 35 : t >= 80 ? 55 : t >= 70 ? 75 : 92)
   }
-  if (thermal?.level === "high" || thermal?.level === "critical") {
+  if (thermal?.level === "warning" || thermal?.level === "high" || thermal?.level === "critical") {
     parts.push(40)
   } else if (thermal?.level === "ok" || thermal?.level === "normal") {
     parts.push(88)
+  }
+  const preset = (overview?.power?.preset || "").toLowerCase()
+  if (preset.includes("high") || preset.includes("performance") || preset.includes("prestaz")) {
+    parts.push(92)
+  } else if (preset.includes("balanced") || preset.includes("bilanc")) {
+    parts.push(72)
+  } else if (preset.includes("saver") || preset.includes("risparmio") || preset.includes("power")) {
+    parts.push(48)
+  } else if (overview?.power?.available) {
+    parts.push(65)
   }
   const startupOn = (overview?.startup?.rows || []).filter((r) => r.enabled).length
   if (overview?.startup?.rows?.length) {
     parts.push(Math.max(30, 100 - startupOn * 6))
   }
   const cleanup = overview?.cleanup?.total_bytes
-  if (typeof cleanup === "number") {
+  if (typeof cleanup === "number" && cleanup > 0) {
     const gib = cleanup / (1024 * 1024 * 1024)
     parts.push(gib > 8 ? 45 : gib > 2 ? 65 : 90)
   }
@@ -259,32 +269,32 @@ const withTimeout = (promise, ms, label) => {
   return Promise.race([promise, timeout]).finally(() => clearTimeout(timer))
 }
 
-const paintHomeShell = (dash, sideMessage) => {
+const paintHomeDash = (dash, score, message) => {
   dash.replaceChildren()
   const ring = el("div", "score-ring")
-  ring.style.setProperty("--pct", 0)
+  ring.style.setProperty("--pct", score == null ? 0 : score)
   const inner = el("div", "score-ring__inner")
-  inner.appendChild(el("span", "score-ring__value", "--"))
+  inner.appendChild(el("span", "score-ring__value", score == null ? "--" : `${score}%`))
   inner.appendChild(el("span", "score-ring__label", "salute"))
   ring.appendChild(inner)
   dash.appendChild(ring)
   const side = el("div")
-  side.appendChild(el("p", null, sideMessage))
+  side.appendChild(el("p", null, message))
   const cta = el("div", "cta-row")
   cta.appendChild(
-    button("1. Misura ora", () => handleNavigate("measure"), {
-      ariaLabel: "Vai a Misura",
+    button("Ottimizza ora", () => handleNavigate("actions"), {
+      ariaLabel: "Vai a Ottimizza",
       className: "btn btn-large",
     })
   )
   cta.appendChild(
-    button("2. Ottimizza", () => handleNavigate("actions"), {
-      ariaLabel: "Vai a Ottimizza",
+    button("Misura", () => handleNavigate("measure"), {
+      ariaLabel: "Vai a Misura",
       className: "btn btn-large btn-secondary",
     })
   )
   cta.appendChild(
-    button("3. Verifica", () => handleNavigate("benchmark"), {
+    button("Verifica", () => handleNavigate("benchmark"), {
       ariaLabel: "Vai a Verifica",
       className: "btn btn-large btn-secondary",
     })
@@ -298,19 +308,17 @@ const renderHome = async (root) => {
     el(
       "p",
       "lede",
-      "Tre passi: misura lo stato attuale, applica solo modifiche spiegate e reversibili, poi verifica il guadagno sulla tua macchina."
+      "Parti da Ottimizza: attiva le 3 consigliate (Game Mode, piano prestazioni, Game Bar). Poi misura e verifica il guadagno reale."
     )
   )
-  const status = el("p", "status", "Carico panoramica...")
+  const status = el("p", "status", "Pronto.")
   status.setAttribute("role", "status")
   const dash = el("div", "panel hero-dash")
   const results = el("div", "results")
-  const skeleton = el("div", "skeleton")
-  skeleton.setAttribute("aria-hidden", "true")
-  results.appendChild(skeleton)
-  paintHomeShell(
+  paintHomeDash(
     dash,
-    "Sto leggendo CPU, avvio e disco. Puoi gia andare a Misura."
+    null,
+    "Un click su Ottimizza ora. Le modifiche sono spiegate e reversibili."
   )
   root.appendChild(status)
   root.appendChild(dash)
@@ -319,85 +327,34 @@ const renderHome = async (root) => {
   try {
     const overview = await withTimeout(
       invoke("everyday_get_overview_lite"),
-      5000,
+      2500,
       "everyday_get_overview_lite"
     )
     homeCache = overview
     const { score, samples } = scoreFromOverview(overview, lastMeasure)
-
-    dash.replaceChildren()
-    const ring = el("div", "score-ring")
-    ring.style.setProperty("--pct", score == null ? 0 : score)
-    const inner = el("div", "score-ring__inner")
-    inner.appendChild(el("span", "score-ring__value", score == null ? "--" : `${score}%`))
-    inner.appendChild(el("span", "score-ring__label", "salute"))
-    ring.appendChild(inner)
-    dash.appendChild(ring)
-
-    const side = el("div")
-    side.appendChild(
-      el(
-        "p",
-        null,
-        score == null
-          ? "Score non ancora calcolabile: avvia una misura."
-          : `Score da ${samples} indicatori reali (CPU, termiche, avvio, spazio, ultima misura). Non e un claim FPS.`
-      )
+    paintHomeDash(
+      dash,
+      score,
+      score == null
+        ? "Score incompleto finche non misuri. Puoi comunque ottimizzare ora."
+        : `Score ${score}% da ${samples} indicatori reali. Non e un claim FPS.`
     )
-    const cta = el("div", "cta-row")
-    cta.appendChild(
-      button("1. Misura ora", () => handleNavigate("measure"), {
-        ariaLabel: "Vai a Misura",
-        className: "btn btn-large",
-      })
-    )
-    cta.appendChild(
-      button("2. Ottimizza", () => handleNavigate("actions"), {
-        ariaLabel: "Vai a Ottimizza",
-        className: "btn btn-large btn-secondary",
-      })
-    )
-    cta.appendChild(
-      button("3. Verifica", () => handleNavigate("benchmark"), {
-        ariaLabel: "Vai a Verifica",
-        className: "btn btn-large btn-secondary",
-      })
-    )
-    side.appendChild(cta)
-    dash.appendChild(side)
-
     results.replaceChildren()
     const grid = el("div", "stat-grid")
-    const topHog = overview.hogs?.hogs?.[0]
     grid.appendChild(
       statTile(
-        "Processo piu pesante",
-        topHog ? `${topHog.cpu_percent.toFixed(0)}% CPU` : "n/d",
-        topHog ? topHog.name : "Nessun hog rilevato"
+        "Alimentazione",
+        overview.power?.preset || (overview.power?.available ? "letta" : "n/d"),
+        overview.power?.message || ""
       )
     )
     grid.appendChild(
       statTile(
         "Temp CPU",
         overview.thermal?.cpu_temp_celsius != null
-          ? `${overview.thermal.cpu_temp_celsius} C`
+          ? `${Number(overview.thermal.cpu_temp_celsius).toFixed(0)} C`
           : "n/d",
         `Livello: ${overview.thermal?.level || "n/d"}`
-      )
-    )
-    grid.appendChild(
-      statTile(
-        "Pulizia disco",
-        formatBytes(overview.cleanup?.total_bytes),
-        "Anteprima, nessuna cancellazione automatica"
-      )
-    )
-    const enabledStartup = (overview.startup?.rows || []).filter((r) => r.enabled).length
-    grid.appendChild(
-      statTile(
-        "Avvio",
-        `${enabledStartup} attivi`,
-        `${overview.startup?.rows?.length || 0} voci elencate`
       )
     )
     if (lastMeasure) {
@@ -407,26 +364,19 @@ const renderHome = async (root) => {
       grid.appendChild(
         statTile("Ultima misura CPU", formatMetric(lastMeasure.session.hardware.cpu_usage_percent))
       )
+    } else {
+      grid.appendChild(statTile("Ultima misura", "ancora no", "Falla dopo Ottimizza"))
     }
     results.appendChild(grid)
-    results.appendChild(el("p", "note", overview.local_measurement_note))
     status.textContent =
       score == null
-        ? "Panoramica pronta. Fai il passo 1: Misura."
-        : `Salute sistema ${score}%. Prossimo passo: Ottimizza, poi Verifica.`
+        ? "Vai su Ottimizza ora, poi Misura e Verifica."
+        : `Salute ${score}%. Prossimo passo: Ottimizza ora.`
   } catch (error) {
+    status.textContent = `Panoramica saltata (${error}). Ottimizza resta disponibile.`
     results.replaceChildren()
-    paintHomeShell(
-      dash,
-      "Panoramica lenta o non disponibile. Parti da Misura -- lo score arrivera dopo."
-    )
-    status.textContent = `Panoramica saltata: ${error}. L'app resta usabile.`
     results.appendChild(
-      el(
-        "p",
-        "note",
-        "Suggerimento: apri Quotidiano dopo qualche secondo, oppure vai subito a Misura."
-      )
+      el("p", "note", "Niente di bloccante: apri Ottimizza e applica le consigliate.")
     )
   }
 }
@@ -828,15 +778,73 @@ const actionPriority = (action) => {
   return score
 }
 
-const impactBadge = (action) => {
-  const p = actionPriority(action)
-  if (p >= 70) {
-    return { text: "Priorita alta", className: "badge" }
+const ACTION_IT = {
+  "windows.game_mode": {
+    title: "Game Mode Windows",
+    blurb: "Dice a Windows di dare priorita al gioco. Di solito e la prima cosa da attivare.",
+  },
+  "windows.power_plan": {
+    title: "Piano alimentazione Prestazioni",
+    blurb: "Passa al piano High Performance. Piu potenza, piu consumo.",
+  },
+  "windows.game_bar": {
+    title: "Disattiva Game Bar / capture",
+    blurb: "Riduce overlay e catture Xbox che possono rubare frame.",
+  },
+  "windows.hags": {
+    title: "HAGS (scheduling GPU)",
+    blurb: "Scheduling GPU accelerato. Richiede elevazione.",
+  },
+}
+
+const RECOMMENDED_IDS = ["windows.game_mode", "windows.power_plan", "windows.game_bar"]
+
+const friendlyTitle = (action) => ACTION_IT[action.id]?.title || action.title
+
+const friendlyBlurb = (action) =>
+  ACTION_IT[action.id]?.blurb || action.explanation?.expected_effect || "Vedi dettagli."
+
+const stateChip = (state, actionId) => {
+  if (!state) {
+    return { text: "stato n/d", className: "badge badge-muted" }
   }
-  if (p >= 50) {
-    return { text: "Priorita media", className: "badge badge-warn" }
+  const raw = state.toLowerCase()
+  if (actionId === "windows.game_bar") {
+    if (raw.includes("off") || raw.includes("disabled") || raw.includes("false")) {
+      return { text: state, className: "badge" }
+    }
+    return { text: state, className: "badge badge-warn" }
   }
-  return { text: "Priorita bassa", className: "badge badge-muted" }
+  if (raw.includes("balanced") || raw.includes("disabled") || raw === "off" || raw.includes("false")) {
+    return { text: state, className: "badge badge-warn" }
+  }
+  return { text: state, className: "badge" }
+}
+
+const applyOne = async (action, status, opts = {}) => {
+  status.textContent = `Applico ${friendlyTitle(action)}…`
+  const outcome = await invoke("actions_apply", {
+    request: {
+      id: action.id,
+      confirm_elevation: !!opts.confirmElevation,
+      confirm_destructive: !!opts.confirmDestructive,
+      input: opts.input || null,
+    },
+  })
+  if (outcome.status === "elevation_required") {
+    status.textContent = `${friendlyTitle(action)}: serve conferma elevazione. Spunta la casella e riprova.`
+    return outcome
+  }
+  if (outcome.status === "confirm_destructive") {
+    status.textContent = outcome.message
+    return outcome
+  }
+  if (outcome.status === "applied") {
+    status.textContent = `OK ${friendlyTitle(action)}: ${outcome.before} → ${outcome.after}`
+    return outcome
+  }
+  status.textContent = `Fallito ${friendlyTitle(action)}: ${outcome.detail || outcome.message || "?"}`
+  return outcome
 }
 
 const renderActions = async (root) => {
@@ -845,154 +853,185 @@ const renderActions = async (root) => {
     el(
       "p",
       "lede",
-      `Azioni per questo host (${catalog.host_os}). Ordinate per priorita. Ogni modifica e spiegata e reversibile. Poi Verifica il guadagno.`
+      "Tre consigliate per questo PC. Applicarle e reversibile. Dopo, vai su Verifica."
     )
   )
-  root.appendChild(el("p", "note", catalog.local_measurement_note))
 
-  if (catalog.macos_honesty) {
-    const honesty = el("div", "panel")
-    honesty.appendChild(el("h2", null, "Onesta macOS"))
-    honesty.appendChild(el("p", null, catalog.macos_honesty.banner))
-    root.appendChild(honesty)
-  }
-
-  const status = el("p", "status", "")
+  const status = el("p", "status", "Scegli Applica tutto oppure una sola azione.")
   status.setAttribute("role", "status")
-  const hostActions = catalog.actions
-    .filter((a) => a.host_status === "available")
-    .slice()
-    .sort((a, b) => actionPriority(b) - actionPriority(a))
+
+  const hostActions = catalog.actions.filter((a) => a.host_status === "available")
+  const byId = Object.fromEntries(hostActions.map((a) => [a.id, a]))
+  const recommended = RECOMMENDED_IDS.map((id) => byId[id]).filter(Boolean)
+  const rest = hostActions.filter((a) => !RECOMMENDED_IDS.includes(a.id))
   const otherActions = catalog.actions.filter((a) => a.host_status !== "available")
 
-  const renderCard = (action, rank) => {
-    const panel = el("div", "panel action-card")
-    if (rank != null) {
-      panel.appendChild(el("p", "priority", `#${rank}`))
+  const pack = el("div", "panel optimize-pack")
+  pack.appendChild(el("h2", null, "Consigliate (1 click)"))
+  pack.appendChild(
+    el(
+      "p",
+      "muted",
+      "Game Mode + piano Prestazioni + Game Bar off. Niente FPS inventati: verifica dopo con Misura/Verifica."
+    )
+  )
+
+  const elevAll = el("input")
+  elevAll.type = "checkbox"
+  elevAll.id = "elev-all"
+  elevAll.setAttribute("aria-label", "Conferma elevazione se richiesta")
+  const elevAllLabel = el("label", "check")
+  elevAllLabel.appendChild(elevAll)
+  elevAllLabel.appendChild(
+    document.createTextNode("Se Windows chiede admin, confermo l'elevazione solo per queste azioni.")
+  )
+  pack.appendChild(elevAllLabel)
+
+  const list = el("div", "rec-list")
+  for (const action of recommended) {
+    const row = el("div", "rec-row")
+    const left = el("div")
+    left.appendChild(el("p", "rec-title", friendlyTitle(action)))
+    left.appendChild(el("p", "muted", friendlyBlurb(action)))
+    if (action.current_state) {
+      const chip = stateChip(action.current_state, action.id)
+      left.appendChild(el("span", chip.className, `Ora: ${chip.text}`))
     }
-    const titleRow = el("div", "cta-row")
-    titleRow.appendChild(el("h2", null, action.title))
-    const badge = impactBadge(action)
-    titleRow.appendChild(el("span", badge.className, badge.text))
-    panel.appendChild(titleRow)
-    panel.appendChild(
-      el(
-        "p",
-        "muted",
-        `${action.id} · ${action.os} · ${action.kind}${
-          action.requires_elevation ? " · richiede elevazione" : ""
-        }`
+    row.appendChild(left)
+    row.appendChild(
+      button(
+        "Applica",
+        async () => {
+          try {
+            await applyOne(action, status, { confirmElevation: elevAll.checked })
+          } catch (error) {
+            status.textContent = `Errore: ${error}`
+          }
+        },
+        { ariaLabel: `Applica ${friendlyTitle(action)}`, className: "btn" }
       )
     )
-    panel.appendChild(
-      el("p", null, action.explanation?.expected_effect || "Effetto: vedi dettagli.")
+    list.appendChild(row)
+  }
+  pack.appendChild(list)
+
+  const packRow = el("div", "cta-row")
+  packRow.appendChild(
+    button(
+      "Applica tutte e 3",
+      async () => {
+        if (!recommended.length) {
+          status.textContent = "Nessuna consigliata disponibile su questo OS."
+          return
+        }
+        status.textContent = "Applico le 3 consigliate…"
+        for (const action of recommended) {
+          try {
+            const outcome = await applyOne(action, status, {
+              confirmElevation: elevAll.checked,
+            })
+            if (outcome.status === "elevation_required") {
+              return
+            }
+          } catch (error) {
+            status.textContent = `Errore su ${friendlyTitle(action)}: ${error}`
+            return
+          }
+        }
+        status.textContent = "Consigliate applicate. Ora Misura, poi Verifica."
+      },
+      { ariaLabel: "Applica tutte le consigliate", className: "btn btn-large" }
     )
+  )
+  packRow.appendChild(
+    button("Poi: Verifica guadagno", () => handleNavigate("benchmark"), {
+      ariaLabel: "Vai a Verifica",
+      className: "btn btn-large btn-secondary",
+    })
+  )
+  packRow.appendChild(
+    button("Misura prima", () => handleNavigate("measure"), {
+      ariaLabel: "Vai a Misura",
+      className: "btn btn-secondary",
+    })
+  )
+  pack.appendChild(packRow)
+  root.appendChild(pack)
+  root.appendChild(status)
+
+  const advanced = el("details", "advanced")
+  advanced.appendChild(el("summary", null, `Altre azioni su questo PC (${rest.length})`))
+  for (const action of rest) {
+    const panel = el("div", "panel action-card")
+    panel.appendChild(el("h2", null, friendlyTitle(action)))
+    panel.appendChild(el("p", "muted", action.id))
+    panel.appendChild(el("p", null, friendlyBlurb(action)))
     if (action.current_state) {
-      panel.appendChild(el("p", null, `Stato attuale: ${action.current_state}`))
+      panel.appendChild(el("p", null, `Stato: ${action.current_state}`))
     }
     renderExplanation(panel, action.explanation)
 
-    if (action.host_status !== "available") {
-      panel.appendChild(el("p", "note", `Non disponibile qui (${action.host_status}).`))
-      return panel
-    }
-
     const input = el("input")
     input.type = "text"
-    input.setAttribute("aria-label", action.input_hint || `Input per ${action.title}`)
-    input.placeholder = action.input_hint || "input opzionale"
-    input.autocomplete = "off"
-    if (action.kind === "needs_input" || action.kind === "toggle" || action.kind === "destructive") {
-      if (action.input_hint) {
-        panel.appendChild(field(action.input_hint, input))
-      }
+    input.setAttribute("aria-label", action.input_hint || `Input ${action.title}`)
+    input.placeholder = action.input_hint || "opzionale"
+    if (action.input_hint) {
+      panel.appendChild(field(action.input_hint, input))
     }
 
     const elevCheck = el("input")
     elevCheck.type = "checkbox"
-    elevCheck.setAttribute("aria-label", `Conferma elevazione per ${action.title}`)
-    const elevLabel = el("label", "check")
-    elevLabel.appendChild(elevCheck)
-    elevLabel.appendChild(
-      document.createTextNode(
-        action.elevation_reason ||
-          "Confermo un prompt di elevazione per questa sola azione."
-      )
-    )
+    elevCheck.setAttribute("aria-label", `Elevazione ${action.title}`)
     if (action.requires_elevation) {
+      const elevLabel = el("label", "check")
+      elevLabel.appendChild(elevCheck)
+      elevLabel.appendChild(document.createTextNode("Confermo elevazione per questa azione"))
       panel.appendChild(elevLabel)
     }
 
     const destCheck = el("input")
     destCheck.type = "checkbox"
-    destCheck.setAttribute("aria-label", `Conferma cleanup per ${action.title}`)
-    const destLabel = el("label", "check")
-    destLabel.appendChild(destCheck)
-    destLabel.appendChild(
-      document.createTextNode("Confermo la pulizia dopo aver visto l'anteprima.")
-    )
     if (action.kind === "destructive") {
+      const destLabel = el("label", "check")
+      destLabel.appendChild(destCheck)
+      destLabel.appendChild(document.createTextNode("Confermo cleanup"))
       panel.appendChild(destLabel)
     }
 
-    const row = el("div", "actions-row")
     if (action.exposes_switch || action.kind === "report" || action.kind === "destructive") {
-      row.appendChild(
+      panel.appendChild(
         button(
-          action.kind === "report" ? "Aggiorna report" : "Applica",
+          action.kind === "report" ? "Aggiorna" : "Applica",
           async () => {
-            status.textContent = `Applico ${action.id}…`
             try {
-              const outcome = await invoke("actions_apply", {
-                request: {
-                  id: action.id,
-                  confirm_elevation: !!elevCheck.checked,
-                  confirm_destructive: !!destCheck.checked,
-                  input: input.value.trim() || null,
-                },
+              await applyOne(action, status, {
+                confirmElevation: elevCheck.checked,
+                confirmDestructive: destCheck.checked,
+                input: input.value.trim() || null,
               })
-              if (outcome.status === "elevation_required") {
-                status.textContent = outcome.message
-              } else if (outcome.status === "confirm_destructive") {
-                status.textContent = outcome.message
-              } else if (outcome.status === "applied") {
-                status.textContent = `Applicato ${outcome.action}: ${outcome.before} → ${outcome.after}`
-              } else {
-                status.textContent = `Fallito ${outcome.action}: ${outcome.detail}`
-              }
             } catch (error) {
-              status.textContent = `Apply fallito: ${error}`
+              status.textContent = `Errore: ${error}`
             }
           },
-          { ariaLabel: `Applica ${action.title}`, className: "btn btn-large" }
+          { ariaLabel: `Applica ${friendlyTitle(action)}` }
         )
       )
     }
-    row.appendChild(
-      button("Poi: Verifica", () => handleNavigate("benchmark"), {
-        ariaLabel: "Vai a Verifica",
-        className: "btn btn-secondary",
-      })
-    )
-    panel.appendChild(row)
-    return panel
+    advanced.appendChild(panel)
   }
+  root.appendChild(advanced)
 
-  root.appendChild(el("h2", null, "Consigliate su questo PC"))
-  if (hostActions.length === 0) {
-    root.appendChild(el("p", "muted", "Nessuna azione registrata per questo OS."))
+  if (otherActions.length) {
+    const other = el("details", "other-os")
+    other.appendChild(el("summary", null, `Altri OS (${otherActions.length})`))
+    for (const action of otherActions) {
+      const panel = el("div", "panel")
+      panel.appendChild(el("h2", null, friendlyTitle(action)))
+      panel.appendChild(el("p", "note", `Non disponibile qui (${action.host_status}).`))
+      other.appendChild(panel)
+    }
+    root.appendChild(other)
   }
-  hostActions.forEach((action, index) => {
-    root.appendChild(renderCard(action, index + 1))
-  })
-
-  const other = el("details", "other-os")
-  other.appendChild(el("summary", null, `Altri OS (${otherActions.length})`))
-  for (const action of otherActions) {
-    other.appendChild(renderCard(action, null))
-  }
-  root.appendChild(other)
-  root.appendChild(status)
 }
 
 const renderProfiles = async (root) => {

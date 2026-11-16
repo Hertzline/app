@@ -23,9 +23,9 @@ impl AppRoute {
     /// Stable order used by nav and smoke checks.
     pub const ALL: [AppRoute; 9] = [
         Self::Home,
+        Self::Actions,
         Self::Measure,
         Self::Benchmark,
-        Self::Actions,
         Self::Profiles,
         Self::Everyday,
         Self::Overlay,
@@ -125,9 +125,9 @@ mod hz055_tests {
 pub fn required_route_ids() -> [&'static str; 9] {
     [
         "home",
+        "actions",
         "measure",
         "benchmark",
-        "actions",
         "profiles",
         "everyday",
         "overlay",
