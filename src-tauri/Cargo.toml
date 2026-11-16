@@ -1,6 +1,6 @@
 [package]
 name = "hertzline"
-version = "1.0.1"
+version = "1.0.2"
 description = "Hertzline desktop shell (Tauri 2, unprivileged)"
 edition.workspace = true
 license.workspace = true

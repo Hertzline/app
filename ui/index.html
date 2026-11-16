@@ -8,24 +8,37 @@
     <script type="module" src="/app.js" defer></script>
   </head>
   <body>
+    <div class="grain" aria-hidden="true"></div>
     <div class="layout">
-      <header class="top">
-        <div class="top-brand">
-          <p class="brand">Hertzline</p>
-          <p class="tag">Misura, ottimizza, verifica. Solo guadagni misurati sulla tua macchina.</p>
+      <aside class="rail">
+        <div class="rail-brand">
+          <p class="brand" id="brand">Hertzline</p>
+          <p class="brand-mark">HZ</p>
         </div>
-        <ol class="steps" aria-label="Flusso consigliato">
-          <li data-step="measure">1 Misura</li>
-          <li data-step="actions">2 Ottimizza</li>
-          <li data-step="benchmark">3 Verifica</li>
-        </ol>
-      </header>
-      <nav class="nav" id="nav" aria-label="Principale"></nav>
-      <main id="main" tabindex="-1" aria-live="polite">
-        <h1 id="title">Caricamento</h1>
-        <div id="body"></div>
-        <p class="meta" id="meta"></p>
-      </main>
+        <nav class="nav" id="nav" aria-label="Principale"></nav>
+        <p class="rail-foot" id="rail-foot">locale · no elevazione</p>
+      </aside>
+      <div class="stage">
+        <header class="top">
+          <div class="top-copy">
+            <p class="eyebrow">Flusso</p>
+            <ol class="steps" aria-label="Flusso consigliato">
+              <li data-step="measure"><span>01</span> Misura</li>
+              <li data-step="actions"><span>02</span> Ottimizza</li>
+              <li data-step="benchmark"><span>03</span> Verifica</li>
+            </ol>
+          </div>
+          <p class="tag">Solo guadagni misurati sulla tua macchina.</p>
+        </header>
+        <main id="main" tabindex="-1" aria-live="polite">
+          <header class="page-head">
+            <h1 id="title">Caricamento</h1>
+            <p class="lede" id="page-lede" hidden></p>
+          </header>
+          <div id="body"></div>
+          <p class="meta" id="meta"></p>
+        </main>
+      </div>
     </div>
   </body>
 </html>

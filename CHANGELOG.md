@@ -4,6 +4,17 @@ All notable changes to the Hertzline desktop app are recorded here.
 The website `/changelog/` mirrors release highlights from `releases.json`
 after a signed public release is published.
 
+## [1.0.2] - 2026-11-16
+
+### Fixed
+
+- Home no longer freezes the UI while everyday overview samples CPU hogs (timeout + skeleton + CTAs first)
+
+### Changed
+
+- Dark precision-instrument visual system with bundled Instrument Sans + IBM Plex Mono
+- Rail navigation layout and sharper product chrome
+
 ## [1.0.1] - 2026-11-16
 
 ### Changed

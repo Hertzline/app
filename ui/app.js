@@ -251,6 +251,48 @@ const renderMeasureCards = (session) => {
   return grid
 }
 
+const withTimeout = (promise, ms, label) => {
+  let timer
+  const timeout = new Promise((_, reject) => {
+    timer = setTimeout(() => reject(new Error(`${label} timeout ${ms}ms`)), ms)
+  })
+  return Promise.race([promise, timeout]).finally(() => clearTimeout(timer))
+}
+
+const paintHomeShell = (dash, sideMessage) => {
+  dash.replaceChildren()
+  const ring = el("div", "score-ring")
+  ring.style.setProperty("--pct", 0)
+  const inner = el("div", "score-ring__inner")
+  inner.appendChild(el("span", "score-ring__value", "--"))
+  inner.appendChild(el("span", "score-ring__label", "salute"))
+  ring.appendChild(inner)
+  dash.appendChild(ring)
+  const side = el("div")
+  side.appendChild(el("p", null, sideMessage))
+  const cta = el("div", "cta-row")
+  cta.appendChild(
+    button("1. Misura ora", () => handleNavigate("measure"), {
+      ariaLabel: "Vai a Misura",
+      className: "btn btn-large",
+    })
+  )
+  cta.appendChild(
+    button("2. Ottimizza", () => handleNavigate("actions"), {
+      ariaLabel: "Vai a Ottimizza",
+      className: "btn btn-large btn-secondary",
+    })
+  )
+  cta.appendChild(
+    button("3. Verifica", () => handleNavigate("benchmark"), {
+      ariaLabel: "Vai a Verifica",
+      className: "btn btn-large btn-secondary",
+    })
+  )
+  side.appendChild(cta)
+  dash.appendChild(side)
+}
+
 const renderHome = async (root) => {
   root.appendChild(
     el(
@@ -263,15 +305,27 @@ const renderHome = async (root) => {
   status.setAttribute("role", "status")
   const dash = el("div", "panel hero-dash")
   const results = el("div", "results")
+  const skeleton = el("div", "skeleton")
+  skeleton.setAttribute("aria-hidden", "true")
+  results.appendChild(skeleton)
+  paintHomeShell(
+    dash,
+    "Sto leggendo CPU, avvio e disco. Puoi gia andare a Misura."
+  )
   root.appendChild(status)
   root.appendChild(dash)
   root.appendChild(results)
 
   try {
-    const overview = await invoke("everyday_get_overview")
+    const overview = await withTimeout(
+      invoke("everyday_get_overview"),
+      8000,
+      "everyday_get_overview"
+    )
     homeCache = overview
     const { score, samples } = scoreFromOverview(overview, lastMeasure)
 
+    dash.replaceChildren()
     const ring = el("div", "score-ring")
     ring.style.setProperty("--pct", score == null ? 0 : score)
     const inner = el("div", "score-ring__inner")
@@ -286,35 +340,33 @@ const renderHome = async (root) => {
         "p",
         null,
         score == null
-          ? "Score non ancora calcolabile: avvia una misura o aggiorna Quotidiano."
+          ? "Score non ancora calcolabile: avvia una misura."
           : `Score da ${samples} indicatori reali (CPU, termiche, avvio, spazio, ultima misura). Non e un claim FPS.`
       )
     )
     const cta = el("div", "cta-row")
     cta.appendChild(
-      button(
-        "1. Misura ora",
-        () => handleNavigate("measure"),
-        { ariaLabel: "Vai a Misura", className: "btn btn-large" }
-      )
+      button("1. Misura ora", () => handleNavigate("measure"), {
+        ariaLabel: "Vai a Misura",
+        className: "btn btn-large",
+      })
     )
     cta.appendChild(
-      button(
-        "2. Ottimizza",
-        () => handleNavigate("actions"),
-        { ariaLabel: "Vai a Ottimizza", className: "btn btn-large btn-secondary" }
-      )
+      button("2. Ottimizza", () => handleNavigate("actions"), {
+        ariaLabel: "Vai a Ottimizza",
+        className: "btn btn-large btn-secondary",
+      })
     )
     cta.appendChild(
-      button(
-        "3. Verifica",
-        () => handleNavigate("benchmark"),
-        { ariaLabel: "Vai a Verifica", className: "btn btn-large btn-secondary" }
-      )
+      button("3. Verifica", () => handleNavigate("benchmark"), {
+        ariaLabel: "Vai a Verifica",
+        className: "btn btn-large btn-secondary",
+      })
     )
     side.appendChild(cta)
     dash.appendChild(side)
 
+    results.replaceChildren()
     const grid = el("div", "stat-grid")
     const topHog = overview.hogs?.hogs?.[0]
     grid.appendChild(
@@ -361,14 +413,20 @@ const renderHome = async (root) => {
     status.textContent =
       score == null
         ? "Panoramica pronta. Fai il passo 1: Misura."
-        : `Salute sistema ${score}%. Prossimo passo: Ottimizza le azioni consigliate, poi Verifica.`
+        : `Salute sistema ${score}%. Prossimo passo: Ottimizza, poi Verifica.`
   } catch (error) {
-    status.textContent = `Panoramica non disponibile: ${error}`
-    dash.appendChild(
-      button("Vai a Misura", () => handleNavigate("measure"), {
-        ariaLabel: "Vai a Misura",
-        className: "btn btn-large",
-      })
+    results.replaceChildren()
+    paintHomeShell(
+      dash,
+      "Panoramica lenta o non disponibile. Parti da Misura -- lo score arrivera dopo."
+    )
+    status.textContent = `Panoramica saltata: ${error}. L'app resta usabile.`
+    results.appendChild(
+      el(
+        "p",
+        "note",
+        "Suggerimento: apri Quotidiano dopo qualche secondo, oppure vai subito a Misura."
+      )
     )
   }
 }
@@ -1237,7 +1295,11 @@ const renderEveryday = async (root) => {
     status.textContent = "Aggiorno..."
     results.replaceChildren()
     try {
-      const overview = await invoke("everyday_get_overview")
+      const overview = await withTimeout(
+        invoke("everyday_get_overview"),
+        8000,
+        "everyday_get_overview"
+      )
       homeCache = overview
       const { score } = scoreFromOverview(overview, lastMeasure)
       results.appendChild(
