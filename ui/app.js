@@ -7,38 +7,59 @@ let beforeBench = null
 let afterBench = null
 let lastVerdict = null
 let profilesState = null
+let homeCache = null
 
 const parseRouteId = () => {
   const hash = window.location.hash.replace(/^#\/?/, "")
-  return hash || "measure"
+  return hash || "home"
+}
+
+const metricValue = (metric) => {
+  if (!metric || metric.status !== "available") {
+    return null
+  }
+  return metric.value
 }
 
 const formatMetric = (metric) => {
   if (!metric || !metric.status) {
-    return "unavailable"
+    return "n/d"
   }
   if (metric.status === "available") {
     const unit = metric.unit ? ` ${metric.unit}` : ""
     return `${metric.value}${unit}`
   }
-  return `unavailable (${metric.reason || "no reason"})`
+  return "n/d"
 }
 
 const formatTextMetric = (metric) => {
-  if (!metric || !metric.status) {
-    return "unavailable"
+  if (!metric || metric.status !== "available") {
+    return "n/d"
   }
-  if (metric.status === "available") {
-    return metric.value
-  }
-  return `unavailable (${metric.reason || "no reason"})`
+  return metric.value
 }
 
 const formatSpread = (spread) => {
   if (!spread) {
-    return "n/a"
+    return "n/d"
   }
-  return `median ${spread.median.toFixed(3)} (IQR ${spread.iqr.toFixed(3)}; ${spread.min.toFixed(3)}--${spread.max.toFixed(3)})`
+  return `mediana ${spread.median.toFixed(1)} (IQR ${spread.iqr.toFixed(1)}; ${spread.min.toFixed(1)}--${spread.max.toFixed(1)})`
+}
+
+const formatBytes = (value) => {
+  if (value === undefined || value === null) {
+    return "n/d"
+  }
+  if (value < 1024) {
+    return `${value} B`
+  }
+  if (value < 1024 * 1024) {
+    return `${(value / 1024).toFixed(1)} KiB`
+  }
+  if (value < 1024 * 1024 * 1024) {
+    return `${(value / (1024 * 1024)).toFixed(1)} MiB`
+  }
+  return `${(value / (1024 * 1024 * 1024)).toFixed(1)} GiB`
 }
 
 const downloadText = (filename, text, mime) => {
@@ -89,6 +110,30 @@ const button = (label, onClick, opts = {}) => {
   return btn
 }
 
+const statTile = (label, value, hint) => {
+  const tile = el("div", "stat-tile")
+  tile.appendChild(el("span", "stat-tile__label", label))
+  tile.appendChild(el("span", "stat-tile__value", value))
+  if (hint) {
+    tile.appendChild(el("span", "stat-tile__hint", hint))
+  }
+  return tile
+}
+
+const updateStepStrip = (activeId) => {
+  const map = {
+    home: null,
+    measure: "measure",
+    actions: "actions",
+    benchmark: "benchmark",
+  }
+  const current = map[activeId] || null
+  document.querySelectorAll(".steps li").forEach((li) => {
+    const step = li.getAttribute("data-step")
+    li.classList.toggle("is-active", step === current)
+  })
+}
+
 const renderNav = (routes, activeId) => {
   const nav = document.querySelector("#nav")
   nav.replaceChildren()
@@ -115,29 +160,69 @@ const renderNav = (routes, activeId) => {
   }
 }
 
+const scoreFromOverview = (overview, measure) => {
+  const parts = []
+  const cpu = overview?.hogs?.hogs?.[0]?.cpu_percent
+  if (typeof cpu === "number") {
+    parts.push(Math.max(0, 100 - Math.min(cpu, 100)))
+  }
+  const thermal = overview?.thermal
+  if (thermal && typeof thermal.cpu_temp_celsius === "number") {
+    const t = thermal.cpu_temp_celsius
+    parts.push(t >= 90 ? 35 : t >= 80 ? 55 : t >= 70 ? 75 : 92)
+  }
+  if (thermal?.level === "high" || thermal?.level === "critical") {
+    parts.push(40)
+  } else if (thermal?.level === "ok" || thermal?.level === "normal") {
+    parts.push(88)
+  }
+  const startupOn = (overview?.startup?.rows || []).filter((r) => r.enabled).length
+  if (overview?.startup?.rows?.length) {
+    parts.push(Math.max(30, 100 - startupOn * 6))
+  }
+  const cleanup = overview?.cleanup?.total_bytes
+  if (typeof cleanup === "number") {
+    const gib = cleanup / (1024 * 1024 * 1024)
+    parts.push(gib > 8 ? 45 : gib > 2 ? 65 : 90)
+  }
+  const fps = metricValue(measure?.session?.frame?.avg_fps)
+  if (typeof fps === "number") {
+    parts.push(fps >= 60 ? 95 : fps >= 45 ? 75 : fps >= 30 ? 55 : 35)
+  }
+  const cpuUse = metricValue(measure?.session?.hardware?.cpu_usage_percent)
+  if (typeof cpuUse === "number") {
+    parts.push(Math.max(0, 100 - cpuUse))
+  }
+  if (!parts.length) {
+    return { score: null, samples: 0 }
+  }
+  const score = Math.round(parts.reduce((a, b) => a + b, 0) / parts.length)
+  return { score, samples: parts.length }
+}
+
 const renderMetricTable = (session) => {
   const table = el("table", "metrics")
-  table.setAttribute("aria-label", "Measurement results")
+  table.setAttribute("aria-label", "Risultati misurazione")
   const body = document.createElement("tbody")
   const rows = [
-    ["avg FPS", formatMetric(session.frame.avg_fps)],
+    ["FPS medio", formatMetric(session.frame.avg_fps)],
     ["1% low FPS", formatMetric(session.frame.low_1pct_fps)],
     ["0.1% low FPS", formatMetric(session.frame.low_0_1pct_fps)],
-    ["frame-time variance", formatMetric(session.frame.frame_time_variance_ms2)],
-    ["CPU usage", formatMetric(session.hardware.cpu_usage_percent)],
-    ["GPU usage", formatMetric(session.hardware.gpu_usage_percent)],
-    ["RAM used", formatMetric(session.hardware.ram_used_bytes)],
-    ["VRAM used", formatMetric(session.hardware.vram_used_bytes)],
-    ["CPU temp", formatMetric(session.hardware.cpu_temp_celsius)],
-    ["GPU temp", formatMetric(session.hardware.gpu_temp_celsius)],
-    ["throttling", formatTextMetric(session.hardware.throttling)],
-    ["disk read", formatMetric(session.disk.disk_read_bytes_per_sec)],
-    ["disk write", formatMetric(session.disk.disk_write_bytes_per_sec)],
-    ["disk queue", formatMetric(session.disk.disk_queue_depth)],
-    ["network host", formatTextMetric(session.network.network_host)],
-    ["latency", formatMetric(session.network.network_latency_ms)],
-    ["jitter", formatMetric(session.network.network_jitter_ms)],
-    ["packet loss", formatMetric(session.network.network_packet_loss_percent)],
+    ["Varianza frame", formatMetric(session.frame.frame_time_variance_ms2)],
+    ["CPU", formatMetric(session.hardware.cpu_usage_percent)],
+    ["GPU", formatMetric(session.hardware.gpu_usage_percent)],
+    ["RAM", formatMetric(session.hardware.ram_used_bytes)],
+    ["VRAM", formatMetric(session.hardware.vram_used_bytes)],
+    ["Temp CPU", formatMetric(session.hardware.cpu_temp_celsius)],
+    ["Temp GPU", formatMetric(session.hardware.gpu_temp_celsius)],
+    ["Throttling", formatTextMetric(session.hardware.throttling)],
+    ["Disco lettura", formatMetric(session.disk.disk_read_bytes_per_sec)],
+    ["Disco scrittura", formatMetric(session.disk.disk_write_bytes_per_sec)],
+    ["Coda disco", formatMetric(session.disk.disk_queue_depth)],
+    ["Host rete", formatTextMetric(session.network.network_host)],
+    ["Latenza", formatMetric(session.network.network_latency_ms)],
+    ["Jitter", formatMetric(session.network.network_jitter_ms)],
+    ["Packet loss", formatMetric(session.network.network_packet_loss_percent)],
   ]
   for (const [name, value] of rows) {
     const tr = document.createElement("tr")
@@ -149,54 +234,194 @@ const renderMetricTable = (session) => {
   return table
 }
 
+const renderMeasureCards = (session) => {
+  const grid = el("div", "stat-grid")
+  grid.appendChild(
+    statTile(
+      "FPS medio",
+      formatMetric(session.frame.avg_fps),
+      "Solo se il probe frame e disponibile"
+    )
+  )
+  grid.appendChild(statTile("1% low", formatMetric(session.frame.low_1pct_fps)))
+  grid.appendChild(statTile("CPU", formatMetric(session.hardware.cpu_usage_percent)))
+  grid.appendChild(statTile("GPU", formatMetric(session.hardware.gpu_usage_percent)))
+  grid.appendChild(statTile("RAM", formatMetric(session.hardware.ram_used_bytes)))
+  grid.appendChild(statTile("Temp CPU", formatMetric(session.hardware.cpu_temp_celsius)))
+  return grid
+}
+
+const renderHome = async (root) => {
+  root.appendChild(
+    el(
+      "p",
+      "lede",
+      "Tre passi: misura lo stato attuale, applica solo modifiche spiegate e reversibili, poi verifica il guadagno sulla tua macchina."
+    )
+  )
+  const status = el("p", "status", "Carico panoramica...")
+  status.setAttribute("role", "status")
+  const dash = el("div", "panel hero-dash")
+  const results = el("div", "results")
+  root.appendChild(status)
+  root.appendChild(dash)
+  root.appendChild(results)
+
+  try {
+    const overview = await invoke("everyday_get_overview")
+    homeCache = overview
+    const { score, samples } = scoreFromOverview(overview, lastMeasure)
+
+    const ring = el("div", "score-ring")
+    ring.style.setProperty("--pct", score == null ? 0 : score)
+    const inner = el("div", "score-ring__inner")
+    inner.appendChild(el("span", "score-ring__value", score == null ? "--" : `${score}%`))
+    inner.appendChild(el("span", "score-ring__label", "salute"))
+    ring.appendChild(inner)
+    dash.appendChild(ring)
+
+    const side = el("div")
+    side.appendChild(
+      el(
+        "p",
+        null,
+        score == null
+          ? "Score non ancora calcolabile: avvia una misura o aggiorna Quotidiano."
+          : `Score da ${samples} indicatori reali (CPU, termiche, avvio, spazio, ultima misura). Non e un claim FPS.`
+      )
+    )
+    const cta = el("div", "cta-row")
+    cta.appendChild(
+      button(
+        "1. Misura ora",
+        () => handleNavigate("measure"),
+        { ariaLabel: "Vai a Misura", className: "btn btn-large" }
+      )
+    )
+    cta.appendChild(
+      button(
+        "2. Ottimizza",
+        () => handleNavigate("actions"),
+        { ariaLabel: "Vai a Ottimizza", className: "btn btn-large btn-secondary" }
+      )
+    )
+    cta.appendChild(
+      button(
+        "3. Verifica",
+        () => handleNavigate("benchmark"),
+        { ariaLabel: "Vai a Verifica", className: "btn btn-large btn-secondary" }
+      )
+    )
+    side.appendChild(cta)
+    dash.appendChild(side)
+
+    const grid = el("div", "stat-grid")
+    const topHog = overview.hogs?.hogs?.[0]
+    grid.appendChild(
+      statTile(
+        "Processo piu pesante",
+        topHog ? `${topHog.cpu_percent.toFixed(0)}% CPU` : "n/d",
+        topHog ? topHog.name : "Nessun hog rilevato"
+      )
+    )
+    grid.appendChild(
+      statTile(
+        "Temp CPU",
+        overview.thermal?.cpu_temp_celsius != null
+          ? `${overview.thermal.cpu_temp_celsius} C`
+          : "n/d",
+        `Livello: ${overview.thermal?.level || "n/d"}`
+      )
+    )
+    grid.appendChild(
+      statTile(
+        "Pulizia disco",
+        formatBytes(overview.cleanup?.total_bytes),
+        "Anteprima, nessuna cancellazione automatica"
+      )
+    )
+    const enabledStartup = (overview.startup?.rows || []).filter((r) => r.enabled).length
+    grid.appendChild(
+      statTile(
+        "Avvio",
+        `${enabledStartup} attivi`,
+        `${overview.startup?.rows?.length || 0} voci elencate`
+      )
+    )
+    if (lastMeasure) {
+      grid.appendChild(
+        statTile("Ultima misura FPS", formatMetric(lastMeasure.session.frame.avg_fps))
+      )
+      grid.appendChild(
+        statTile("Ultima misura CPU", formatMetric(lastMeasure.session.hardware.cpu_usage_percent))
+      )
+    }
+    results.appendChild(grid)
+    results.appendChild(el("p", "note", overview.local_measurement_note))
+    status.textContent =
+      score == null
+        ? "Panoramica pronta. Fai il passo 1: Misura."
+        : `Salute sistema ${score}%. Prossimo passo: Ottimizza le azioni consigliate, poi Verifica.`
+  } catch (error) {
+    status.textContent = `Panoramica non disponibile: ${error}`
+    dash.appendChild(
+      button("Vai a Misura", () => handleNavigate("measure"), {
+        ariaLabel: "Vai a Misura",
+        className: "btn btn-large",
+      })
+    )
+  }
+}
+
 const renderMeasure = (root) => {
   root.appendChild(
     el(
       "p",
       "lede",
-      "Capture one local session. Missing sensors stay unavailable. Export uses identical CSV and JSON fields."
+      "Avvia una sessione locale. I sensori assenti restano n/d. Poi passa a Ottimizza."
     )
   )
 
   const processInput = el("input")
   processInput.type = "text"
   processInput.id = "measure-process"
-  processInput.setAttribute("aria-label", "Target process name")
-  processInput.placeholder = "optional process label"
+  processInput.setAttribute("aria-label", "Nome processo target")
+  processInput.placeholder = "es. gioco.exe (opzionale)"
 
   const hostInput = el("input")
   hostInput.type = "text"
   hostInput.id = "measure-host"
-  hostInput.setAttribute("aria-label", "Network host for latency")
-  hostInput.placeholder = "optional ping host"
-
-  const csvInput = el("textarea")
-  csvInput.id = "measure-presentmon"
-  csvInput.rows = 4
-  csvInput.setAttribute("aria-label", "PresentMon CSV")
-  csvInput.placeholder = "Optional PresentMon CSV (MsBetweenPresents) when probe is available"
-
-  const mangoInput = el("textarea")
-  mangoInput.id = "measure-mangohud"
-  mangoInput.rows = 4
-  mangoInput.setAttribute("aria-label", "MangoHud log")
-  mangoInput.placeholder = "Optional MangoHud frametime log when probe is available"
+  hostInput.setAttribute("aria-label", "Host rete per latenza")
+  hostInput.placeholder = "host ping opzionale"
 
   const form = el("div", "panel")
-  form.appendChild(field("Target process", processInput))
-  form.appendChild(field("Network host", hostInput))
-  form.appendChild(field("PresentMon CSV", csvInput))
-  form.appendChild(field("MangoHud log", mangoInput))
+  form.appendChild(field("Processo target", processInput))
+  form.appendChild(field("Host rete", hostInput))
+
+  const advanced = el("details", "advanced")
+  advanced.appendChild(el("summary", null, "Opzioni avanzate (PresentMon / MangoHud)"))
+  const csvInput = el("textarea")
+  csvInput.id = "measure-presentmon"
+  csvInput.rows = 3
+  csvInput.setAttribute("aria-label", "CSV PresentMon")
+  csvInput.placeholder = "CSV PresentMon opzionale"
+  const mangoInput = el("textarea")
+  mangoInput.id = "measure-mangohud"
+  mangoInput.rows = 3
+  mangoInput.setAttribute("aria-label", "Log MangoHud")
+  mangoInput.placeholder = "Log MangoHud opzionale"
+  advanced.appendChild(field("CSV PresentMon", csvInput))
+  advanced.appendChild(field("Log MangoHud", mangoInput))
+  form.appendChild(advanced)
 
   const status = el("p", "status", "")
   status.id = "measure-status"
   status.setAttribute("role", "status")
-
   const results = el("div", "results")
   results.id = "measure-results"
 
   const handleRun = async () => {
-    status.textContent = "Running measurement..."
+    status.textContent = "Misurazione in corso..."
     results.replaceChildren()
     try {
       lastMeasure = await invoke("measure_run", {
@@ -208,43 +433,59 @@ const renderMeasure = (root) => {
           notes: null,
         },
       })
-      status.textContent = `Session ${lastMeasure.session.meta.session_id}. Probe: ${lastMeasure.frame_probe.status} (${lastMeasure.frame_probe.detail})`
-      results.appendChild(renderMetricTable(lastMeasure.session))
+      status.textContent = `Sessione ${lastMeasure.session.meta.session_id}. Probe: ${lastMeasure.frame_probe.status}`
+      results.appendChild(renderMeasureCards(lastMeasure.session))
+      const next = el("div", "cta-row")
+      next.appendChild(
+        button("Continua: Ottimizza", () => handleNavigate("actions"), {
+          ariaLabel: "Vai a Ottimizza",
+          className: "btn btn-large",
+        })
+      )
+      results.appendChild(next)
       results.appendChild(el("p", "note", lastMeasure.local_measurement_note))
+      const details = el("details", "advanced")
+      details.appendChild(el("summary", null, "Tabella completa + export"))
+      details.appendChild(renderMetricTable(lastMeasure.session))
       const exports = el("div", "actions-row")
       exports.appendChild(
-        button("Export CSV", () => {
+        button("Esporta CSV", () => {
           downloadText(
             `${lastMeasure.session.meta.session_id}.csv`,
             lastMeasure.csv,
             "text/csv"
           )
-        }, { ariaLabel: "Export measurement as CSV" })
+        }, { ariaLabel: "Esporta CSV" })
       )
       exports.appendChild(
-        button("Export JSON", () => {
+        button("Esporta JSON", () => {
           downloadText(
             `${lastMeasure.session.meta.session_id}.json`,
             lastMeasure.json,
             "application/json"
           )
-        }, { ariaLabel: "Export measurement as JSON" })
+        }, { ariaLabel: "Esporta JSON", className: "btn btn-secondary" })
       )
-      results.appendChild(exports)
+      details.appendChild(exports)
+      results.appendChild(details)
     } catch (error) {
-      status.textContent = `Measurement failed: ${error}`
+      status.textContent = `Misura fallita: ${error}`
     }
   }
 
-  form.appendChild(button("Run measurement", handleRun, { ariaLabel: "Run measurement session" }))
+  form.appendChild(
+    button("Avvia misura", handleRun, {
+      ariaLabel: "Avvia misurazione",
+      className: "btn btn-large",
+    })
+  )
   root.appendChild(form)
   root.appendChild(status)
   root.appendChild(results)
 
   if (lastMeasure) {
-    status.textContent = `Last session ${lastMeasure.session.meta.session_id}`
-    results.appendChild(renderMetricTable(lastMeasure.session))
-    results.appendChild(el("p", "note", lastMeasure.local_measurement_note))
+    status.textContent = `Ultima sessione ${lastMeasure.session.meta.session_id}`
+    results.appendChild(renderMeasureCards(lastMeasure.session))
   }
 }
 
@@ -252,23 +493,30 @@ const renderBenchCard = (title, result) => {
   const card = el("div", "panel")
   card.appendChild(el("h2", null, title))
   if (!result) {
-    card.appendChild(el("p", "muted", "Not run yet."))
+    card.appendChild(el("p", "muted", "Non ancora eseguito."))
     return card
   }
-  card.appendChild(el("p", null, `Source: ${result.source}`))
-  card.appendChild(el("p", null, `avg FPS ${formatSpread(result.avg_fps)}`))
+  card.appendChild(el("p", null, `Sorgente: ${result.source}`))
+  card.appendChild(el("p", null, `FPS medio ${formatSpread(result.avg_fps)}`))
   card.appendChild(el("p", null, `1% low ${formatSpread(result.low_1pct_fps)}`))
   card.appendChild(el("p", null, `0.1% low ${formatSpread(result.low_0_1pct_fps)}`))
-  card.appendChild(el("p", null, `frame time ${formatSpread(result.avg_frame_time_ms)}`))
+  card.appendChild(el("p", null, `Frame time ${formatSpread(result.avg_frame_time_ms)}`))
   return card
 }
 
 const parseWindowsJson = (text) => {
   const parsed = JSON.parse(text)
   if (!Array.isArray(parsed) || parsed.length === 0) {
-    throw new Error("windows must be a non-empty JSON array of frame-time arrays")
+    throw new Error("windows deve essere un array JSON non vuoto di array di frame-time")
   }
   return parsed
+}
+
+const gainPercent = (beforeMedian, afterMedian) => {
+  if (!beforeMedian || beforeMedian === 0) {
+    return null
+  }
+  return ((afterMedian - beforeMedian) / beforeMedian) * 100
 }
 
 const renderBenchmark = async (root) => {
@@ -279,71 +527,90 @@ const renderBenchmark = async (root) => {
     el(
       "p",
       "lede",
-      "Before/after benchmark with warm-up, fixed duration, and at least 3 passes. A change is helpful only if the measured gain exceeds the noise band."
+      "Wizard before/after. Un cambiamento e utile solo se il guadagno supera la banda di rumore misurata."
     )
   )
   root.appendChild(el("p", "note", noLocal))
 
+  const wizard = el("div", "wizard")
+  const stepBefore = el("div", "wizard__step", "1 Before")
+  const stepAfter = el("div", "wizard__step", "2 After")
+  const stepCompare = el("div", "wizard__step", "3 Confronta")
+  wizard.appendChild(stepBefore)
+  wizard.appendChild(stepAfter)
+  wizard.appendChild(stepCompare)
+  root.appendChild(wizard)
+
   const warmup = el("input")
   warmup.type = "number"
-  warmup.id = "bench-warmup"
   warmup.min = "1"
   warmup.value = String(defaults.warmup_ms)
-  warmup.setAttribute("aria-label", "Warm-up milliseconds")
+  warmup.setAttribute("aria-label", "Warm-up millisecondi")
 
   const measureMs = el("input")
   measureMs.type = "number"
-  measureMs.id = "bench-measure"
   measureMs.min = "1"
   measureMs.value = String(defaults.measure_ms)
-  measureMs.setAttribute("aria-label", "Measure milliseconds per pass")
+  measureMs.setAttribute("aria-label", "Misura millisecondi per pass")
 
   const passes = el("input")
   passes.type = "number"
-  passes.id = "bench-passes"
   passes.min = "3"
   passes.value = String(defaults.pass_count)
-  passes.setAttribute("aria-label", "Pass count")
+  passes.setAttribute("aria-label", "Numero pass")
 
   const windowsInput = el("textarea")
-  windowsInput.id = "bench-windows"
-  windowsInput.rows = 5
+  windowsInput.rows = 4
   windowsInput.setAttribute("aria-label", "Frame time windows JSON")
   windowsInput.placeholder =
-    'JSON: [[warmup ms...],[pass1...],[pass2...],[pass3...]] — local frame times only'
+    "JSON: [[warmup ms...],[pass1...],[pass2...],[pass3...]]"
 
   const form = el("div", "panel")
-  form.appendChild(field("Warm-up (ms)", warmup))
-  form.appendChild(field("Measure per pass (ms)", measureMs))
-  form.appendChild(field("Passes (>=3)", passes))
-  form.appendChild(field("Frame windows (JSON)", windowsInput))
+  const advanced = el("details", "advanced")
+  advanced.appendChild(el("summary", null, "Parametri e finestre frame (avanzato)"))
+  advanced.appendChild(field("Warm-up (ms)", warmup))
+  advanced.appendChild(field("Misura per pass (ms)", measureMs))
+  advanced.appendChild(field("Pass (>=3)", passes))
+  advanced.appendChild(field("Finestre frame (JSON)", windowsInput))
+  form.appendChild(advanced)
 
   const status = el("p", "status", "")
-  status.id = "bench-status"
   status.setAttribute("role", "status")
-
   const results = el("div", "results")
-  results.id = "bench-results"
 
-  const readConfig = () => ({
-    warmup_ms: Number(warmup.value),
-    measure_ms: Number(measureMs.value),
-    pass_count: Number(passes.value),
-  })
+  const syncWizard = () => {
+    stepBefore.classList.toggle("is-done", !!beforeBench)
+    stepBefore.classList.toggle("is-current", !beforeBench)
+    stepAfter.classList.toggle("is-done", !!afterBench)
+    stepAfter.classList.toggle("is-current", !!beforeBench && !afterBench)
+    stepCompare.classList.toggle("is-done", !!lastVerdict)
+    stepCompare.classList.toggle("is-current", !!beforeBench && !!afterBench && !lastVerdict)
+  }
 
   const refreshResults = () => {
     results.replaceChildren()
+    syncWizard()
     results.appendChild(renderBenchCard("Before", beforeBench))
     results.appendChild(renderBenchCard("After", afterBench))
     if (lastVerdict) {
       const v = el("div", "panel verdict")
-      v.appendChild(el("h2", null, "Verdict"))
+      v.appendChild(el("h2", null, "Verdetto"))
+      const pct = gainPercent(lastVerdict.before_median, lastVerdict.after_median)
+      v.appendChild(
+        el(
+          "p",
+          "verdict-gain",
+          pct == null
+            ? lastVerdict.message
+            : `${pct >= 0 ? "+" : ""}${pct.toFixed(1)}% FPS mediano`
+        )
+      )
       v.appendChild(el("p", null, lastVerdict.message))
       v.appendChild(
         el(
           "p",
           null,
-          `Measured median gain ${lastVerdict.gain.toFixed(3)} fps (noise band ${lastVerdict.noise_band.toFixed(3)}). Before ${lastVerdict.before_median.toFixed(3)} -> after ${lastVerdict.after_median.toFixed(3)}.`
+          `Guadagno mediano ${lastVerdict.gain.toFixed(2)} fps (rumore ${lastVerdict.noise_band.toFixed(2)}). ${lastVerdict.before_median.toFixed(2)} -> ${lastVerdict.after_median.toFixed(2)} fps.`
         )
       )
       v.appendChild(el("p", "note", lastVerdict.explanation))
@@ -351,8 +618,8 @@ const renderBenchmark = async (root) => {
         v.appendChild(
           el(
             "p",
-            "revert",
-            "Offer revert: yes. Restore the change if you applied one (Restore all route)."
+            "note",
+            "Il guadagno non batte il rumore: valuta Ripristina tutto se hai applicato una modifica."
           )
         )
       }
@@ -360,8 +627,14 @@ const renderBenchmark = async (root) => {
     }
   }
 
+  const readConfig = () => ({
+    warmup_ms: Number(warmup.value),
+    measure_ms: Number(measureMs.value),
+    pass_count: Number(passes.value),
+  })
+
   const handlePhase = async (phase) => {
-    status.textContent = `Running ${phase}...`
+    status.textContent = `Eseguo ${phase}...`
     try {
       const config = readConfig()
       const windows = parseWindowsJson(windowsInput.value)
@@ -376,16 +649,16 @@ const renderBenchmark = async (root) => {
         afterBench = result
       }
       lastVerdict = null
-      status.textContent = `${phase} complete (source ${result.source}).`
+      status.textContent = `${phase} completato (${result.source}).`
       refreshResults()
     } catch (error) {
-      status.textContent = `${phase} failed: ${error}`
+      status.textContent = `${phase} fallito: ${error}`
     }
   }
 
   const handleCompare = async () => {
     if (!beforeBench || !afterBench) {
-      status.textContent = "Run before and after first."
+      status.textContent = "Esegui before e after prima."
       return
     }
     try {
@@ -393,15 +666,15 @@ const renderBenchmark = async (root) => {
         before: beforeBench,
         after: afterBench,
       })
-      status.textContent = `Verdict: ${lastVerdict.message}`
+      status.textContent = `Verdetto: ${lastVerdict.message}`
       refreshResults()
     } catch (error) {
-      status.textContent = `Compare failed: ${error}`
+      status.textContent = `Confronto fallito: ${error}`
     }
   }
 
   const handleMock = async () => {
-    status.textContent = "Running labeled mock pair (not a live capture)..."
+    status.textContent = "Coppia mock etichettata (non e una cattura live)..."
     try {
       const pair = await invoke("benchmark_run_labeled_mock", {
         beforeFrameMs: 1000 / 60,
@@ -411,30 +684,38 @@ const renderBenchmark = async (root) => {
       afterBench = pair[1]
       lastVerdict = pair[2]
       status.textContent =
-        "Labeled mock complete. Source is labeled_mock -- not a live capture. No marketing +X FPS claim."
+        "Mock etichettato completato. Sorgente labeled_mock -- non e una cattura live."
       refreshResults()
     } catch (error) {
-      status.textContent = `Mock failed: ${error}`
+      status.textContent = `Mock fallito: ${error}`
     }
   }
 
   const actions = el("div", "actions-row")
   actions.appendChild(
-    button("Run before", () => handlePhase("before"), { ariaLabel: "Run before benchmark" })
+    button("1. Esegui before", () => handlePhase("before"), {
+      ariaLabel: "Esegui before",
+      className: "btn btn-large",
+    })
   )
   actions.appendChild(
-    button("Run after", () => handlePhase("after"), { ariaLabel: "Run after benchmark" })
+    button("2. Esegui after", () => handlePhase("after"), {
+      ariaLabel: "Esegui after",
+      className: "btn btn-large",
+    })
   )
   actions.appendChild(
-    button("Compare", handleCompare, { ariaLabel: "Compare before and after" })
+    button("3. Confronta", handleCompare, {
+      ariaLabel: "Confronta before e after",
+      className: "btn btn-large",
+    })
   )
   actions.appendChild(
-    button("Labeled mock (no effect)", handleMock, {
-      ariaLabel: "Run labeled mock benchmark pair",
+    button("Mock etichettato", handleMock, {
+      ariaLabel: "Esegui mock etichettato",
       className: "btn btn-secondary",
     })
   )
-
   form.appendChild(actions)
   root.appendChild(form)
   root.appendChild(status)
@@ -443,19 +724,61 @@ const renderBenchmark = async (root) => {
 }
 
 const renderExplanation = (parent, explanation) => {
+  const details = el("details", "advanced")
+  details.appendChild(el("summary", null, "Cosa fa / rischio / come annullare"))
   const dl = el("dl", "explanation")
   const rows = [
-    ["What", explanation.what],
-    ["Expected effect", explanation.expected_effect],
-    ["Risk", explanation.risk],
-    ["How to undo", explanation.how_to_undo],
-    ["Local measurement", explanation.local_measurement],
+    ["Cosa", explanation.what],
+    ["Effetto atteso", explanation.expected_effect],
+    ["Rischio", explanation.risk],
+    ["Come annullare", explanation.how_to_undo],
+    ["Misura locale", explanation.local_measurement],
   ]
   for (const [label, value] of rows) {
     dl.appendChild(el("dt", null, label))
     dl.appendChild(el("dd", null, value))
   }
-  parent.appendChild(dl)
+  details.appendChild(dl)
+  parent.appendChild(details)
+}
+
+const actionPriority = (action) => {
+  let score = 40
+  const state = (action.current_state || "").toLowerCase()
+  if (state.includes("off") || state.includes("disabled") || state.includes("balanced")) {
+    score += 25
+  }
+  if (state.includes("on") || state.includes("enabled") || state.includes("performance")) {
+    score -= 10
+  }
+  if (action.kind === "destructive") {
+    score += 5
+  }
+  if (action.kind === "report") {
+    score -= 5
+  }
+  if (action.requires_elevation) {
+    score -= 8
+  }
+  const risk = (action.explanation?.risk || "").toLowerCase()
+  if (risk.includes("low") || risk.includes("basso")) {
+    score += 15
+  }
+  if (risk.includes("high") || risk.includes("alto")) {
+    score -= 20
+  }
+  return score
+}
+
+const impactBadge = (action) => {
+  const p = actionPriority(action)
+  if (p >= 70) {
+    return { text: "Priorita alta", className: "badge" }
+  }
+  if (p >= 50) {
+    return { text: "Priorita media", className: "badge badge-warn" }
+  }
+  return { text: "Priorita bassa", className: "badge badge-muted" }
 }
 
 const renderActions = async (root) => {
@@ -464,61 +787,62 @@ const renderActions = async (root) => {
     el(
       "p",
       "lede",
-      `Optimization actions for this host (${catalog.host_os}). Each action shows what it does, risk, and how to undo. Elevation is requested per action only.`
+      `Azioni per questo host (${catalog.host_os}). Ordinate per priorita. Ogni modifica e spiegata e reversibile. Poi Verifica il guadagno.`
     )
   )
   root.appendChild(el("p", "note", catalog.local_measurement_note))
 
   if (catalog.macos_honesty) {
-    const honesty = el("div", "panel honesty")
-    honesty.appendChild(el("h2", null, "macOS honesty"))
+    const honesty = el("div", "panel")
+    honesty.appendChild(el("h2", null, "Onesta macOS"))
     honesty.appendChild(el("p", null, catalog.macos_honesty.banner))
-    if (catalog.host_os === "macos") {
-      const list = el("ul", "cap-list")
-      for (const cap of catalog.macos_honesty.capabilities.filter((c) => c.kind === "action")) {
-        const item = el(
-          "li",
-          null,
-          `${cap.id} [${cap.level}] toggle=${cap.exposes_toggle ? "yes" : "no"} — ${cap.summary}`
-        )
-        list.appendChild(item)
-      }
-      honesty.appendChild(list)
-    }
     root.appendChild(honesty)
   }
 
   const status = el("p", "status", "")
   status.setAttribute("role", "status")
-  const hostActions = catalog.actions.filter((a) => a.host_status === "available")
+  const hostActions = catalog.actions
+    .filter((a) => a.host_status === "available")
+    .slice()
+    .sort((a, b) => actionPriority(b) - actionPriority(a))
   const otherActions = catalog.actions.filter((a) => a.host_status !== "available")
 
-  const renderCard = (action) => {
+  const renderCard = (action, rank) => {
     const panel = el("div", "panel action-card")
-    panel.appendChild(el("h2", null, action.title))
+    if (rank != null) {
+      panel.appendChild(el("p", "priority", `#${rank}`))
+    }
+    const titleRow = el("div", "cta-row")
+    titleRow.appendChild(el("h2", null, action.title))
+    const badge = impactBadge(action)
+    titleRow.appendChild(el("span", badge.className, badge.text))
+    panel.appendChild(titleRow)
     panel.appendChild(
       el(
         "p",
         "muted",
-        `${action.id} · ${action.os} · ${action.ac_refs.join(", ")} · ${action.kind}${
-          action.requires_elevation ? " · elevation required" : ""
+        `${action.id} · ${action.os} · ${action.kind}${
+          action.requires_elevation ? " · richiede elevazione" : ""
         }`
       )
     )
+    panel.appendChild(
+      el("p", null, action.explanation?.expected_effect || "Effetto: vedi dettagli.")
+    )
     if (action.current_state) {
-      panel.appendChild(el("p", null, `Current: ${action.current_state}`))
+      panel.appendChild(el("p", null, `Stato attuale: ${action.current_state}`))
     }
     renderExplanation(panel, action.explanation)
 
     if (action.host_status !== "available") {
-      panel.appendChild(el("p", "note", `Not available on this host (${action.host_status}).`))
+      panel.appendChild(el("p", "note", `Non disponibile qui (${action.host_status}).`))
       return panel
     }
 
     const input = el("input")
     input.type = "text"
-    input.setAttribute("aria-label", action.input_hint || `Input for ${action.title}`)
-    input.placeholder = action.input_hint || "optional input"
+    input.setAttribute("aria-label", action.input_hint || `Input per ${action.title}`)
+    input.placeholder = action.input_hint || "input opzionale"
     input.autocomplete = "off"
     if (action.kind === "needs_input" || action.kind === "toggle" || action.kind === "destructive") {
       if (action.input_hint) {
@@ -528,14 +852,13 @@ const renderActions = async (root) => {
 
     const elevCheck = el("input")
     elevCheck.type = "checkbox"
-    elevCheck.id = `elev-${action.id}`
-    elevCheck.setAttribute("aria-label", `Confirm elevation for ${action.title}`)
+    elevCheck.setAttribute("aria-label", `Conferma elevazione per ${action.title}`)
     const elevLabel = el("label", "check")
     elevLabel.appendChild(elevCheck)
     elevLabel.appendChild(
       document.createTextNode(
         action.elevation_reason ||
-          "I confirm a per-action elevation prompt (not whole-app elevation)."
+          "Confermo un prompt di elevazione per questa sola azione."
       )
     )
     if (action.requires_elevation) {
@@ -544,11 +867,11 @@ const renderActions = async (root) => {
 
     const destCheck = el("input")
     destCheck.type = "checkbox"
-    destCheck.setAttribute("aria-label", `Confirm destructive cleanup for ${action.title}`)
+    destCheck.setAttribute("aria-label", `Conferma cleanup per ${action.title}`)
     const destLabel = el("label", "check")
     destLabel.appendChild(destCheck)
     destLabel.appendChild(
-      document.createTextNode("I confirm cleanup after reviewing the size preview.")
+      document.createTextNode("Confermo la pulizia dopo aver visto l'anteprima.")
     )
     if (action.kind === "destructive") {
       panel.appendChild(destLabel)
@@ -558,9 +881,9 @@ const renderActions = async (root) => {
     if (action.exposes_switch || action.kind === "report" || action.kind === "destructive") {
       row.appendChild(
         button(
-          action.kind === "report" ? "Refresh report" : "Apply",
+          action.kind === "report" ? "Aggiorna report" : "Applica",
           async () => {
-            status.textContent = `Applying ${action.id}…`
+            status.textContent = `Applico ${action.id}…`
             try {
               const outcome = await invoke("actions_apply", {
                 request: {
@@ -575,34 +898,40 @@ const renderActions = async (root) => {
               } else if (outcome.status === "confirm_destructive") {
                 status.textContent = outcome.message
               } else if (outcome.status === "applied") {
-                status.textContent = `Applied ${outcome.action}: ${outcome.before} → ${outcome.after} (entry ${outcome.entry_id})`
+                status.textContent = `Applicato ${outcome.action}: ${outcome.before} → ${outcome.after}`
               } else {
-                status.textContent = `Failed ${outcome.action}: ${outcome.detail}`
+                status.textContent = `Fallito ${outcome.action}: ${outcome.detail}`
               }
             } catch (error) {
-              status.textContent = `Apply failed: ${error}`
+              status.textContent = `Apply fallito: ${error}`
             }
           },
-          { ariaLabel: `Apply ${action.title}` }
+          { ariaLabel: `Applica ${action.title}`, className: "btn btn-large" }
         )
       )
     }
+    row.appendChild(
+      button("Poi: Verifica", () => handleNavigate("benchmark"), {
+        ariaLabel: "Vai a Verifica",
+        className: "btn btn-secondary",
+      })
+    )
     panel.appendChild(row)
     return panel
   }
 
-  root.appendChild(el("h2", null, "Available on this host"))
+  root.appendChild(el("h2", null, "Consigliate su questo PC"))
   if (hostActions.length === 0) {
-    root.appendChild(el("p", "muted", "No host actions registered for this OS."))
+    root.appendChild(el("p", "muted", "Nessuna azione registrata per questo OS."))
   }
-  for (const action of hostActions) {
-    root.appendChild(renderCard(action))
-  }
+  hostActions.forEach((action, index) => {
+    root.appendChild(renderCard(action, index + 1))
+  })
 
   const other = el("details", "other-os")
-  other.appendChild(el("summary", null, `Other OS actions (${otherActions.length})`))
+  other.appendChild(el("summary", null, `Altri OS (${otherActions.length})`))
   for (const action of otherActions) {
-    other.appendChild(renderCard(action))
+    other.appendChild(renderCard(action, null))
   }
   root.appendChild(other)
   root.appendChild(status)
@@ -613,7 +942,7 @@ const renderProfiles = async (root) => {
     el(
       "p",
       "lede",
-      "Per-game profiles apply a saved action set when the game starts and restore every change on exit. Detection uses documented launcher paths only."
+      "Profili per gioco: applicano un set di azioni all'avvio e ripristinano tutto all'uscita."
     )
   )
   const status = el("p", "status", "")
@@ -627,62 +956,56 @@ const renderProfiles = async (root) => {
       results.appendChild(el("p", "note", profilesState.note))
 
       const activePanel = el("div", "panel")
-      activePanel.appendChild(el("h2", null, "Active session"))
+      activePanel.appendChild(el("h2", null, "Sessione attiva"))
       if (profilesState.active.active) {
         activePanel.appendChild(
           el(
             "p",
             null,
-            `${profilesState.active.name} (${profilesState.active.game_key}) · phase ${profilesState.active.phase}`
+            `${profilesState.active.name} (${profilesState.active.game_key}) · fase ${profilesState.active.phase}`
           )
         )
         activePanel.appendChild(
-          el("p", "muted", `Actions: ${profilesState.active.action_ids.join(", ") || "(none)"}`)
+          el("p", "muted", `Azioni: ${profilesState.active.action_ids.join(", ") || "(nessuna)"}`)
         )
         activePanel.appendChild(
           button(
-            "Restore on exit",
+            "Ripristina all'uscita",
             async () => {
-              status.textContent = "Restoring active profile…"
+              status.textContent = "Ripristino profilo…"
               try {
                 const outcome = await invoke("profiles_restore", { labeledMock: false })
-                if (outcome.status === "restored") {
-                  status.textContent = `Restored ${outcome.name} (${outcome.game_key}).`
-                } else {
-                  status.textContent = `Restore failed: ${outcome.detail}`
-                }
+                status.textContent =
+                  outcome.status === "restored"
+                    ? `Ripristinato ${outcome.name}.`
+                    : `Ripristino fallito: ${outcome.detail}`
                 await refresh()
               } catch (error) {
-                status.textContent = `Restore failed: ${error}`
+                status.textContent = `Ripristino fallito: ${error}`
               }
             },
-            { ariaLabel: "Restore active profile on game exit" }
+            { ariaLabel: "Ripristina profilo attivo" }
           )
         )
       } else {
-        activePanel.appendChild(el("p", "muted", "No profile session is active."))
+        activePanel.appendChild(el("p", "muted", "Nessuna sessione profilo attiva."))
       }
       results.appendChild(activePanel)
 
       const manualPanel = el("div", "panel")
-      manualPanel.appendChild(el("h2", null, "Add manual path"))
+      manualPanel.appendChild(el("h2", null, "Aggiungi percorso manuale"))
       const nameInput = el("input")
       nameInput.type = "text"
-      nameInput.id = "manual-name"
-      nameInput.setAttribute("aria-label", "Manual game name")
-      nameInput.autocomplete = "off"
+      nameInput.setAttribute("aria-label", "Nome gioco")
       const pathInput = el("input")
       pathInput.type = "text"
-      pathInput.id = "manual-path"
-      pathInput.setAttribute("aria-label", "Manual install path")
-      pathInput.autocomplete = "off"
-      manualPanel.appendChild(field("Game name", nameInput))
-      manualPanel.appendChild(field("Install path", pathInput))
+      pathInput.setAttribute("aria-label", "Percorso installazione")
+      manualPanel.appendChild(field("Nome gioco", nameInput))
+      manualPanel.appendChild(field("Percorso", pathInput))
       manualPanel.appendChild(
         button(
-          "Add manual path",
+          "Aggiungi",
           async () => {
-            status.textContent = "Adding manual path…"
             try {
               profilesState = await invoke("profiles_add_manual", {
                 request: {
@@ -690,23 +1013,23 @@ const renderProfiles = async (root) => {
                   install_path: pathInput.value,
                 },
               })
-              status.textContent = "Manual path added."
+              status.textContent = "Percorso aggiunto."
               nameInput.value = ""
               pathInput.value = ""
               await refresh()
             } catch (error) {
-              status.textContent = `Manual path failed: ${error}`
+              status.textContent = `Errore: ${error}`
             }
           },
-          { ariaLabel: "Add manual game install path" }
+          { ariaLabel: "Aggiungi percorso manuale" }
         )
       )
       results.appendChild(manualPanel)
 
-      results.appendChild(el("h2", null, `Detected games (${profilesState.games.length})`))
+      results.appendChild(el("h2", null, `Giochi rilevati (${profilesState.games.length})`))
       if (!profilesState.games.length) {
         results.appendChild(
-          el("p", "muted", "No games found yet. Add a manual path or install a supported launcher.")
+          el("p", "muted", "Nessun gioco trovato. Aggiungi un percorso o installa un launcher supportato.")
         )
       }
       for (const game of profilesState.games) {
@@ -724,18 +1047,14 @@ const renderProfiles = async (root) => {
         const actionsInput = el("input")
         actionsInput.type = "text"
         actionsInput.value = existing.action_ids.join(", ")
-        actionsInput.setAttribute(
-          "aria-label",
-          `Action ids for ${game.name} (comma-separated)`
-        )
-        actionsInput.placeholder = "action ids, comma-separated (e.g. windows.game_mode)"
-        panel.appendChild(field("Profile actions", actionsInput))
+        actionsInput.setAttribute("aria-label", `ID azioni per ${game.name}`)
+        actionsInput.placeholder = "id azioni, separati da virgola"
+        panel.appendChild(field("Azioni profilo", actionsInput))
         const row = el("div", "actions-row")
         row.appendChild(
           button(
-            "Save profile",
+            "Salva profilo",
             async () => {
-              status.textContent = `Saving profile for ${game.game_key}…`
               try {
                 const actionIds = actionsInput.value
                   .split(",")
@@ -748,53 +1067,46 @@ const renderProfiles = async (root) => {
                     action_ids: actionIds,
                   },
                 })
-                status.textContent = `Saved profile for ${game.name}.`
+                status.textContent = `Profilo salvato per ${game.name}.`
                 await refresh()
               } catch (error) {
-                status.textContent = `Save failed: ${error}`
+                status.textContent = `Salvataggio fallito: ${error}`
               }
             },
-            { ariaLabel: `Save profile for ${game.name}`, className: "btn btn-secondary" }
+            { ariaLabel: `Salva profilo ${game.name}`, className: "btn btn-secondary" }
           )
         )
         row.appendChild(
           button(
-            "Apply on start",
+            "Applica all'avvio",
             async () => {
-              status.textContent = `Applying profile for ${game.game_key}…`
               try {
                 const outcome = await invoke("profiles_apply", {
-                  request: {
-                    game_key: game.game_key,
-                    labeled_mock: false,
-                  },
+                  request: { game_key: game.game_key, labeled_mock: false },
                 })
-                if (outcome.status === "applied") {
-                  status.textContent = `Applied ${outcome.name}: ${outcome.action_ids.join(", ")}`
-                } else {
-                  status.textContent = `Apply failed: ${outcome.detail}`
-                }
+                status.textContent =
+                  outcome.status === "applied"
+                    ? `Applicato ${outcome.name}`
+                    : `Fallito: ${outcome.detail}`
                 await refresh()
               } catch (error) {
-                status.textContent = `Apply failed: ${error}`
+                status.textContent = `Apply fallito: ${error}`
               }
             },
-            { ariaLabel: `Apply profile for ${game.name} on game start` }
+            { ariaLabel: `Applica profilo ${game.name}` }
           )
         )
         panel.appendChild(row)
         results.appendChild(panel)
       }
-      status.textContent = `${profilesState.games.length} game(s), ${profilesState.profiles.length} profile(s).`
+      status.textContent = `${profilesState.games.length} giochi, ${profilesState.profiles.length} profili.`
     } catch (error) {
-      status.textContent = `Profiles failed: ${error}`
+      status.textContent = `Profili falliti: ${error}`
     }
   }
 
   root.appendChild(
-    button("Refresh games and profiles", refresh, {
-      ariaLabel: "Refresh detected games and profiles",
-    })
+    button("Aggiorna giochi e profili", refresh, { ariaLabel: "Aggiorna profili" })
   )
   root.appendChild(status)
   root.appendChild(results)
@@ -803,11 +1115,7 @@ const renderProfiles = async (root) => {
 
 const renderChangelog = async (root) => {
   root.appendChild(
-    el(
-      "p",
-      "lede",
-      "Local change log: time, action, before/after, and restore status. Nothing leaves this machine."
-    )
+    el("p", "lede", "Cronologia locale: tempo, azione, before/after, stato ripristino.")
   )
   const status = el("p", "status", "")
   status.setAttribute("role", "status")
@@ -818,15 +1126,15 @@ const renderChangelog = async (root) => {
     try {
       const rows = await invoke("actions_change_log")
       if (!rows.length) {
-        results.appendChild(el("p", "muted", "No changes recorded yet."))
-        status.textContent = "Change log empty."
+        results.appendChild(el("p", "muted", "Nessuna modifica registrata."))
+        status.textContent = "Cronologia vuota."
         return
       }
       const table = el("table", "metrics")
-      table.setAttribute("aria-label", "Change log")
+      table.setAttribute("aria-label", "Cronologia modifiche")
       const head = document.createElement("thead")
       const hr = document.createElement("tr")
-      for (const label of ["ID", "Time", "Action", "Before", "After", "Status", ""]) {
+      for (const label of ["ID", "Tempo", "Azione", "Before", "After", "Stato", ""]) {
         hr.appendChild(el("th", null, label))
       }
       head.appendChild(hr)
@@ -844,18 +1152,17 @@ const renderChangelog = async (root) => {
         if (row.restore_status === "outstanding") {
           cell.appendChild(
             button(
-              "Restore",
+              "Ripristina",
               async () => {
-                status.textContent = `Restoring entry ${row.id}…`
                 try {
                   const updated = await invoke("actions_restore_entry", { entryId: row.id })
-                  status.textContent = `Restored entry ${updated.id} (${updated.restore_status}).`
+                  status.textContent = `Ripristinato ${updated.id}.`
                   await refresh()
                 } catch (error) {
-                  status.textContent = `Restore failed: ${error}`
+                  status.textContent = `Ripristino fallito: ${error}`
                 }
               },
-              { ariaLabel: `Restore change ${row.id}`, className: "btn btn-secondary" }
+              { ariaLabel: `Ripristina ${row.id}`, className: "btn btn-secondary" }
             )
           )
         }
@@ -864,15 +1171,13 @@ const renderChangelog = async (root) => {
       }
       table.appendChild(body)
       results.appendChild(table)
-      status.textContent = `${rows.length} change log row(s).`
+      status.textContent = `${rows.length} voci.`
     } catch (error) {
-      status.textContent = `Change log failed: ${error}`
+      status.textContent = `Cronologia fallita: ${error}`
     }
   }
 
-  root.appendChild(
-    button("Refresh change log", refresh, { ariaLabel: "Refresh change log" })
-  )
+  root.appendChild(button("Aggiorna", refresh, { ariaLabel: "Aggiorna cronologia" }))
   root.appendChild(status)
   root.appendChild(results)
   await refresh()
@@ -883,50 +1188,36 @@ const renderRestoreAll = async (root) => {
     el(
       "p",
       "lede",
-      "One-click restore all reverts every outstanding Hertzline change. This path also runs on crash recovery and uninstall without the UI."
+      "Ripristina tutte le modifiche Hertzline ancora aperte. Stesso percorso usato da crash recovery e disinstallazione."
     )
   )
   const status = el("p", "status", "")
   status.setAttribute("role", "status")
   const results = el("div", "results")
 
-  const handleRestore = async () => {
-    status.textContent = "Running restore all…"
-    results.replaceChildren()
-    try {
-      const report = await invoke("actions_restore_all")
-      status.textContent = `Restore all ${report.status} (trigger ${report.trigger}; ok=${report.ok}; requires_ui=${report.requires_ui}).`
-      const list = el("ul", "cap-list")
-      for (const item of report.items) {
-        list.appendChild(el("li", null, item))
-      }
-      results.appendChild(list)
-      results.appendChild(el("p", "note", `Store: ${report.store_path}`))
-    } catch (error) {
-      status.textContent = `Restore all failed: ${error}`
-    }
-  }
-
   root.appendChild(
-    button("Restore all outstanding changes", handleRestore, {
-      ariaLabel: "Restore all outstanding Hertzline changes",
-    })
+    button(
+      "Ripristina tutto",
+      async () => {
+        status.textContent = "Ripristino in corso…"
+        results.replaceChildren()
+        try {
+          const report = await invoke("actions_restore_all")
+          status.textContent = `Ripristino ${report.status} (ok=${report.ok}).`
+          const list = el("ul", "cap-list")
+          for (const item of report.items) {
+            list.appendChild(el("li", null, item))
+          }
+          results.appendChild(list)
+        } catch (error) {
+          status.textContent = `Ripristino fallito: ${error}`
+        }
+      },
+      { ariaLabel: "Ripristina tutte le modifiche", className: "btn btn-large" }
+    )
   )
   root.appendChild(status)
   root.appendChild(results)
-}
-
-const formatBytes = (value) => {
-  if (value === undefined || value === null) {
-    return "n/a"
-  }
-  if (value < 1024) {
-    return `${value} B`
-  }
-  if (value < 1024 * 1024) {
-    return `${(value / 1024).toFixed(1)} KiB`
-  }
-  return `${(value / (1024 * 1024)).toFixed(1)} MiB`
 }
 
 const renderEveryday = async (root) => {
@@ -934,170 +1225,128 @@ const renderEveryday = async (root) => {
     el(
       "p",
       "lede",
-      "Everyday mode reviews startup impact, resource hogs, power presets, disk cleanup, thermals, and a weekly health report. No silent kills. No invented FPS."
+      "Modalita quotidiana: avvio, processi pesanti, alimentazione, pulizia disco, termiche, report settimanale."
     )
   )
-  const status = el("p", "status", "Loading everyday overview...")
+  const status = el("p", "status", "Carico...")
   const results = el("div", "results")
   root.appendChild(status)
   root.appendChild(results)
 
   const refresh = async () => {
-    status.textContent = "Refreshing..."
+    status.textContent = "Aggiorno..."
     results.replaceChildren()
     try {
       const overview = await invoke("everyday_get_overview")
+      homeCache = overview
+      const { score } = scoreFromOverview(overview, lastMeasure)
+      results.appendChild(
+        statTile("Salute stimata", score == null ? "n/d" : `${score}%`, "Da indicatori reali")
+      )
       results.appendChild(el("p", "note", overview.local_measurement_note))
 
-      results.appendChild(el("h2", null, "Startup impact"))
-      results.appendChild(el("p", "muted", overview.startup.note))
-      if (!overview.startup.rows.length) {
-        results.appendChild(el("p", "muted", "No startup entries listed on this host."))
-      } else {
-        const list = el("ul", "list")
-        for (const row of overview.startup.rows) {
-          list.appendChild(
-            el(
-              "li",
-              null,
-              `${row.name} · ${row.enabled ? "enabled" : "disabled"} · ${row.impact_summary}${row.reversible ? " · reversible" : ""}`
-            )
+      results.appendChild(el("h2", null, "Impatto avvio"))
+      const list = el("ul", "list")
+      for (const row of overview.startup.rows) {
+        list.appendChild(
+          el(
+            "li",
+            null,
+            `${row.name} · ${row.enabled ? "attivo" : "disattivo"} · ${row.impact_summary}`
           )
-        }
+        )
+      }
+      if (!overview.startup.rows.length) {
+        results.appendChild(el("p", "muted", "Nessuna voce avvio."))
+      } else {
         results.appendChild(list)
       }
 
-      results.appendChild(el("h2", null, "Background resource hogs"))
-      results.appendChild(el("p", "muted", overview.hogs.note))
+      results.appendChild(el("h2", null, "Processi pesanti"))
       const hogList = el("ul", "list")
       for (const hog of overview.hogs.hogs) {
         hogList.appendChild(
           el(
             "li",
             null,
-            `${hog.name} (pid ${hog.pid}) · CPU ${hog.cpu_percent.toFixed(1)}% · RAM ${formatBytes(hog.ram_bytes)} · disk r/w ${formatBytes(hog.disk_read_bytes)} / ${formatBytes(hog.disk_write_bytes)}`
+            `${hog.name} · CPU ${hog.cpu_percent.toFixed(1)}% · RAM ${formatBytes(hog.ram_bytes)}`
           )
         )
       }
       results.appendChild(hogList)
-      results.appendChild(
-        button(
-          "Refuse silent kill (guard)",
-          async () => {
-            try {
-              await invoke("everyday_kill_guard", { confirm: false })
-              status.textContent = "Kill guard unexpectedly allowed a kill."
-            } catch (error) {
-              status.textContent = `Kill refused as required: ${error}`
-            }
-          },
-          { ariaLabel: "Demonstrate that everyday mode refuses process kills without confirm" }
-        )
-      )
 
-      results.appendChild(el("h2", null, "Power preset"))
-      results.appendChild(el("p", "muted", overview.power.message))
+      results.appendChild(el("h2", null, "Profilo alimentazione"))
       results.appendChild(
         el(
           "p",
-          "muted",
-          `${overview.power.explanation.what} Risk: ${overview.power.explanation.risk}`
+          null,
+          overview.power.available
+            ? `Attuale: ${overview.power.preset || "sconosciuto"}`
+            : overview.power.message
         )
       )
       if (overview.power.available) {
-        results.appendChild(
-          el(
-            "p",
-            null,
-            `Current: ${overview.power.preset || "unknown"} (${overview.power.backend || "n/a"})`
-          )
-        )
-        const presets = [
-          ["battery_saver", "Battery saver"],
-          ["balanced", "Balanced"],
-          ["performance", "Performance"],
-        ]
-        for (const [id, label] of presets) {
+        for (const [id, label] of [
+          ["battery_saver", "Risparmio"],
+          ["balanced", "Bilanciato"],
+          ["performance", "Prestazioni"],
+        ]) {
           results.appendChild(
             button(
-              `Apply ${label}`,
+              `Applica ${label}`,
               async () => {
-                const outcome = await invoke("everyday_apply_preset", { request: { preset: id } })
-                if (outcome.status === "applied") {
-                  status.textContent = `Preset applied (entry ${outcome.entry_id}).`
-                  await refresh()
-                } else {
-                  status.textContent = `Preset failed: ${outcome.detail}`
-                }
+                const outcome = await invoke("everyday_apply_preset", {
+                  request: { preset: id },
+                })
+                status.textContent =
+                  outcome.status === "applied"
+                    ? `Preset applicato (${outcome.entry_id}).`
+                    : `Fallito: ${outcome.detail}`
+                await refresh()
               },
-              { ariaLabel: `Apply ${label} power preset` }
+              { ariaLabel: `Applica ${label}` }
             )
           )
         }
       }
 
-      results.appendChild(el("h2", null, "Disk cleanup preview"))
-      results.appendChild(el("p", "muted", overview.cleanup.note))
-      results.appendChild(el("p", null, `Total preview: ${formatBytes(overview.cleanup.total_bytes)}`))
-      const cleanList = el("ul", "list")
-      for (const entry of overview.cleanup.entries) {
-        cleanList.appendChild(
-          el("li", null, `${entry.label}: ${formatBytes(entry.bytes)} · ${entry.path}`)
-        )
-      }
-      results.appendChild(cleanList)
+      results.appendChild(el("h2", null, "Pulizia disco (anteprima)"))
+      results.appendChild(
+        el("p", null, `Totale anteprima: ${formatBytes(overview.cleanup.total_bytes)}`)
+      )
       results.appendChild(
         button(
-          "Delete previewed files (confirm)",
+          "Elimina file in anteprima",
           async () => {
             const outcome = await invoke("everyday_apply_cleanup", {
               request: { confirm: true },
             })
-            if (outcome.status === "applied") {
-              status.textContent = `Cleanup removed ${formatBytes(outcome.bytes_removed)}.`
-              await refresh()
-            } else if (outcome.status === "preview_required") {
-              status.textContent = outcome.message
-            } else {
-              status.textContent = `Cleanup failed: ${outcome.detail}`
-            }
+            status.textContent =
+              outcome.status === "applied"
+                ? `Rimossi ${formatBytes(outcome.bytes_removed)}.`
+                : outcome.message || outcome.detail
+            await refresh()
           },
-          { ariaLabel: "Confirm and delete previewed cleanup paths" }
+          { ariaLabel: "Conferma pulizia disco" }
         )
       )
 
-      results.appendChild(el("h2", null, "Thermal warnings"))
-      results.appendChild(el("p", "muted", overview.thermal.note))
+      results.appendChild(el("h2", null, "Termiche"))
       results.appendChild(
         el(
           "p",
           null,
-          `Level: ${overview.thermal.level}. Threshold: ${overview.thermal.high_temp_celsius} C. CPU ${overview.thermal.cpu_temp_celsius ?? "unavailable"} / GPU ${overview.thermal.gpu_temp_celsius ?? "unavailable"}. Throttle: ${overview.thermal.throttling ?? "unavailable"}`
+          `Livello ${overview.thermal.level}. CPU ${overview.thermal.cpu_temp_celsius ?? "n/d"} / GPU ${overview.thermal.gpu_temp_celsius ?? "n/d"} C`
         )
       )
-      for (const warning of overview.thermal.warnings) {
-        results.appendChild(el("p", "note", `${warning.source}: ${warning.message}`))
-      }
-
-      results.appendChild(el("h2", null, "Weekly health report"))
-      results.appendChild(el("p", "muted", overview.weekly.note))
-      results.appendChild(
-        el(
-          "p",
-          null,
-          `Window ${overview.weekly.window_start_unix_ms}--${overview.weekly.window_end_unix_ms}. Measurements: ${overview.weekly.measurements.length}. Applied: ${overview.weekly.applied_actions.length}. Rollbacks: ${overview.weekly.rollbacks.length}.`
-        )
-      )
-      status.textContent = "Everyday overview ready."
+      status.textContent = "Panoramica quotidiana pronta."
     } catch (error) {
-      status.textContent = `Everyday overview failed: ${error}`
+      status.textContent = `Errore: ${error}`
     }
   }
 
   root.appendChild(
-    button("Refresh everyday overview", refresh, {
-      ariaLabel: "Refresh everyday mode overview",
-    })
+    button("Aggiorna", refresh, { ariaLabel: "Aggiorna quotidiano", className: "btn btn-large" })
   )
   await refresh()
 }
@@ -1107,58 +1356,45 @@ const renderOverlay = async (root) => {
     el(
       "p",
       "lede",
-      "Optional FPS and frame-time overlay. Supported methods only (PresentMon ETW panel / MangoHud user wrap / macOS partial). Never injects into the game. Off by default when anti-cheat install markers are found. One global disable control."
+      "Overlay FPS/frame-time opzionale. Mai injection nel gioco. Off di default con anti-cheat."
     )
   )
-  const status = el("p", "status", "Loading overlay settings...")
+  const status = el("p", "status", "Carico...")
   const results = el("div", "results")
   root.appendChild(status)
   root.appendChild(results)
 
   const pathInput = document.createElement("input")
   pathInput.type = "text"
-  pathInput.placeholder = "Optional game install path for anti-cheat scan"
-  pathInput.setAttribute("aria-label", "Game install path for anti-cheat scan")
+  pathInput.placeholder = "Percorso installazione gioco (opzionale)"
+  pathInput.setAttribute("aria-label", "Percorso installazione")
 
   const enabledInput = document.createElement("input")
   enabledInput.type = "checkbox"
-  enabledInput.id = "overlay-user-enabled"
-  enabledInput.setAttribute("aria-label", "Enable overlay when policy allows")
+  enabledInput.setAttribute("aria-label", "Abilita overlay")
 
   const acInput = document.createElement("input")
   acInput.type = "checkbox"
-  acInput.id = "overlay-allow-ac"
-  acInput.setAttribute(
-    "aria-label",
-    "Allow overlay with anti-cheat when method is documented as non-injection"
-  )
+  acInput.setAttribute("aria-label", "Consenti con anti-cheat")
 
   const applyOverview = (overview) => {
     status.textContent = overview.decision_enabled
-      ? `Overlay policy: enabled (${overview.method_id})`
-      : `Overlay policy: off (${overview.block_reason || "preference"})`
+      ? `Overlay attivo (${overview.method_id})`
+      : `Overlay off (${overview.block_reason || "preferenza"})`
     results.replaceChildren()
     results.appendChild(el("p", null, overview.note))
     results.appendChild(
       el(
         "p",
         null,
-        `Method: ${overview.method_id} / ${overview.method_status}. ${overview.method_summary}`
-      )
-    )
-    results.appendChild(el("p", null, overview.method_detail))
-    results.appendChild(
-      el(
-        "p",
-        null,
-        `Injects into game: ${overview.injects_into_game ? "yes" : "no"}. Decision: ${overview.decision_message}`
+        `Metodo: ${overview.method_id} / ${overview.method_status}. Injection: ${overview.injects_into_game ? "si" : "no"}.`
       )
     )
     results.appendChild(
       el(
         "p",
         null,
-        `Anti-cheat: ${overview.anti_cheat_detected ? "detected" : "not detected"}. ${overview.anti_cheat_note}`
+        `Anti-cheat: ${overview.anti_cheat_detected ? "rilevato" : "non rilevato"}.`
       )
     )
     const panel = overview.panel
@@ -1166,7 +1402,7 @@ const renderOverlay = async (root) => {
       el(
         "p",
         null,
-        `Panel: ${panel.status}; avg FPS ${panel.avg_fps ?? "n/a"}; frame time ${panel.avg_frame_time_ms ?? "n/a"} ms; samples ${panel.sample_count}. ${panel.note}`
+        `Pannello: ${panel.status}; FPS ${panel.avg_fps ?? "n/d"}; frame ${panel.avg_frame_time_ms ?? "n/d"} ms.`
       )
     )
     enabledInput.checked = overview.settings.user_enabled && !overview.settings.globally_disabled
@@ -1174,118 +1410,62 @@ const renderOverlay = async (root) => {
   }
 
   const refresh = async () => {
-    status.textContent = "Refreshing..."
     try {
-      const path = pathInput.value.trim()
       const overview = await invoke("overlay_get_overview", {
-        installPath: path || null,
+        installPath: pathInput.value.trim() || null,
       })
       applyOverview(overview)
     } catch (error) {
-      status.textContent = `Overlay load failed: ${error}`
+      status.textContent = `Errore: ${error}`
     }
   }
 
-  const handleSave = async () => {
-    status.textContent = "Saving..."
-    try {
-      const overview = await invoke("overlay_save_settings", {
-        request: {
-          globally_disabled: false,
-          user_enabled: enabledInput.checked,
-          allow_with_anti_cheat: acInput.checked,
-          install_path: pathInput.value.trim() || null,
-        },
-      })
-      applyOverview(overview)
-    } catch (error) {
-      status.textContent = `Save failed: ${error}`
-    }
-  }
-
-  const handleGlobalDisable = async () => {
-    status.textContent = "Disabling globally..."
-    try {
-      const overview = await invoke("overlay_disable_globally")
-      applyOverview(overview)
-    } catch (error) {
-      status.textContent = `Global disable failed: ${error}`
-    }
-  }
-
-  const handleScan = async () => {
-    const path = pathInput.value.trim()
-    if (!path) {
-      status.textContent = "Enter an install path to scan."
-      return
-    }
-    status.textContent = "Scanning..."
-    try {
-      const overview = await invoke("overlay_scan_anti_cheat", {
-        request: { install_path: path },
-      })
-      applyOverview(overview)
-    } catch (error) {
-      status.textContent = `Scan failed: ${error}`
-    }
-  }
-
-  const handleMockPanel = async () => {
-    try {
-      const panel = await invoke("overlay_labeled_mock_panel")
-      results.appendChild(
-        el(
-          "p",
-          null,
-          `Labeled mock panel: ${panel.status}; avg FPS ${panel.avg_fps?.toFixed?.(2) ?? panel.avg_fps} (not live capture).`
-        )
-      )
-    } catch (error) {
-      status.textContent = `Mock panel failed: ${error}`
-    }
-  }
-
-  root.appendChild(field("Install path", pathInput))
+  root.appendChild(field("Percorso installazione", pathInput))
   const enabledLabel = el("label", "field")
   enabledLabel.appendChild(enabledInput)
-  enabledLabel.appendChild(el("span", "field-label", " Enable overlay (when policy allows)"))
+  enabledLabel.appendChild(el("span", "field-label", " Abilita overlay (se permesso)"))
   root.appendChild(enabledLabel)
   const acLabel = el("label", "field")
   acLabel.appendChild(acInput)
-  acLabel.appendChild(
-    el(
-      "span",
-      "field-label",
-      " Allow with anti-cheat (documented non-injection methods only; still off by default until checked)"
-    )
-  )
+  acLabel.appendChild(el("span", "field-label", " Consenti con anti-cheat (solo metodi documentati)"))
   root.appendChild(acLabel)
+
   const row = el("div", "actions")
   row.appendChild(
-    button("Save overlay settings", handleSave, {
-      ariaLabel: "Save overlay settings",
-    })
+    button(
+      "Salva",
+      async () => {
+        try {
+          const overview = await invoke("overlay_save_settings", {
+            request: {
+              globally_disabled: false,
+              user_enabled: enabledInput.checked,
+              allow_with_anti_cheat: acInput.checked,
+              install_path: pathInput.value.trim() || null,
+            },
+          })
+          applyOverview(overview)
+        } catch (error) {
+          status.textContent = `Salvataggio fallito: ${error}`
+        }
+      },
+      { ariaLabel: "Salva overlay" }
+    )
   )
   row.appendChild(
-    button("Disable overlay globally", handleGlobalDisable, {
-      ariaLabel: "Disable overlay globally in one control",
-    })
+    button(
+      "Disattiva globalmente",
+      async () => {
+        try {
+          applyOverview(await invoke("overlay_disable_globally"))
+        } catch (error) {
+          status.textContent = `Errore: ${error}`
+        }
+      },
+      { ariaLabel: "Disattiva overlay globalmente", className: "btn btn-secondary" }
+    )
   )
-  row.appendChild(
-    button("Scan install path", handleScan, {
-      ariaLabel: "Scan install path for anti-cheat markers",
-    })
-  )
-  row.appendChild(
-    button("Show labeled mock panel", handleMockPanel, {
-      ariaLabel: "Show labeled mock overlay panel values",
-    })
-  )
-  row.appendChild(
-    button("Refresh", refresh, {
-      ariaLabel: "Refresh overlay overview",
-    })
-  )
+  row.appendChild(button("Aggiorna", refresh, { ariaLabel: "Aggiorna overlay" }))
   root.appendChild(row)
   await refresh()
 }
@@ -1298,10 +1478,13 @@ const renderRoute = async (routes, info) => {
     window.location.hash = route.hash_path
   }
   renderNav(routes, activeId)
+  updateStepStrip(activeId)
   document.querySelector("#title").textContent = route.title
   const body = document.querySelector("#body")
   body.replaceChildren()
-  if (activeId === "measure") {
+  if (activeId === "home") {
+    await renderHome(body)
+  } else if (activeId === "measure") {
     renderMeasure(body)
   } else if (activeId === "benchmark") {
     await renderBenchmark(body)
@@ -1318,10 +1501,10 @@ const renderRoute = async (routes, info) => {
   } else if (activeId === "restore-all") {
     await renderRestoreAll(body)
   } else {
-    body.appendChild(el("p", "lede", "This shell route is registered."))
+    body.appendChild(el("p", "lede", "Route registrata."))
   }
   document.querySelector("#meta").textContent =
-    `Unprivileged shell v${info.app_version} (core ${info.core_version}). No elevation at startup.`
+    `Shell non privilegiata v${info.app_version} (core ${info.core_version}). Nessuna elevazione all'avvio.`
   document.querySelector("#main").focus({ preventScroll: true })
 }
 

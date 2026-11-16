@@ -4,6 +4,14 @@ All notable changes to the Hertzline desktop app are recorded here.
 The website `/changelog/` mirrors release highlights from `releases.json`
 after a signed public release is published.
 
+## [1.0.1] - 2026-11-16
+
+### Changed
+
+- Italian product UI with Home dashboard: system health score %, big stats tiles, and a clear Measure → Optimize → Verify flow
+- Actions ranked by priority; benchmark verdict shows median FPS gain as a percentage from measured before/after only
+- Advanced PresentMon/MangoHud and raw tables moved behind details
+
 ## [1.0.0] - 2026-11-15 (release candidate)
 
 First v1 release candidate. Measurement, benchmark, reversible actions,

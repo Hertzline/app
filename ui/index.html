@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="en">
+<html lang="it">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
@@ -10,12 +10,19 @@
   <body>
     <div class="layout">
       <header class="top">
-        <p class="brand">Hertzline</p>
-        <p class="tag">Measure first. Change only what you can reverse.</p>
+        <div class="top-brand">
+          <p class="brand">Hertzline</p>
+          <p class="tag">Misura, ottimizza, verifica. Solo guadagni misurati sulla tua macchina.</p>
+        </div>
+        <ol class="steps" aria-label="Flusso consigliato">
+          <li data-step="measure">1 Misura</li>
+          <li data-step="actions">2 Ottimizza</li>
+          <li data-step="benchmark">3 Verifica</li>
+        </ol>
       </header>
-      <nav class="nav" id="nav" aria-label="Primary"></nav>
+      <nav class="nav" id="nav" aria-label="Principale"></nav>
       <main id="main" tabindex="-1" aria-live="polite">
-        <h1 id="title">Loading</h1>
+        <h1 id="title">Caricamento</h1>
         <div id="body"></div>
         <p class="meta" id="meta"></p>
       </main>

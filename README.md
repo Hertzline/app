@@ -36,7 +36,7 @@ Requires sibling checkout of `Hertzline/core` at `../core`.
 | `src-tauri` | Tauri 2 binary (`hertzline`) |
 | `ui` | Static shell UI (hash routes) |
 
-Routes: `#/measure` · `#/benchmark` · `#/actions` · `#/profiles` · `#/changelog` · `#/restore-all` · `#/everyday` · `#/overlay`
+Routes: `#/home` · `#/measure` · `#/benchmark` · `#/actions` · `#/profiles` · `#/everyday` · `#/overlay` · `#/changelog` · `#/restore-all`
 
 <img src="https://capsule-render.vercel.app/api?type=rect&height=3&color=0:0f1412,35:2a9b7a,70:c9a227,100:0f1412" width="100%" alt="" />
 
