@@ -235,15 +235,14 @@ mod lite_tests {
         let overview = everyday_overview_lite().expect("lite");
         assert!(overview.hogs.hogs.is_empty());
         assert_eq!(overview.cleanup.total_bytes, 0);
-        assert!(!overview.thermal.note.is_empty() || overview.thermal.level.len() > 0);
+        assert_eq!(overview.thermal.level, "deferred");
+        assert!(overview.thermal.cpu_temp_celsius.is_none());
     }
 }
 
-/// Fast Home dashboard: thermal + power only (startup/hogs/cleanup deferred).
+/// Fast Home dashboard: power only. No sysinfo sample (that sleeps ~400ms+ and freezes UI).
 pub fn everyday_overview_lite() -> Result<EverydayOverviewDto, String> {
     let power = read_power_preset();
-    let mut hw = SysinfoHardwareSampler::new();
-    let thermal = assess_thermal(&hw.sample());
     Ok(EverydayOverviewDto {
         local_measurement_note: crate::measure::NO_LOCAL_ACTION_MEASUREMENT.to_string(),
         startup: StartupImpactDto {
@@ -264,7 +263,15 @@ pub fn everyday_overview_lite() -> Result<EverydayOverviewDto, String> {
             total_bytes: 0,
             entries: Vec::new(),
         },
-        thermal: map_thermal(thermal),
+        thermal: ThermalDto {
+            level: "deferred".into(),
+            cpu_temp_celsius: None,
+            gpu_temp_celsius: None,
+            throttling: None,
+            high_temp_celsius: HIGH_TEMP_CELSIUS,
+            warnings: Vec::new(),
+            note: "Termica completa in Quotidiano (Home non aspetta i sensori).".into(),
+        },
         weekly: WeeklyReportDto {
             window_start_unix_ms: 0,
             window_end_unix_ms: 0,

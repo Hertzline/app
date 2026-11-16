@@ -4,6 +4,18 @@ All notable changes to the Hertzline desktop app are recorded here.
 The website `/changelog/` mirrors release highlights from `releases.json`
 after a signed public release is published.
 
+## [1.0.6] - 2026-11-16
+
+### Fixed
+
+- Home no longer samples hardware (sysinfo sleep) so startup stops freezing
+- Action catalog probes only the 3 recommended tips for live state
+- Hash navigation no longer double-renders pages
+
+### Changed
+
+- Cleaner chrome: less glow/grain, clearer nav + larger CTAs
+
 ## [1.0.5] - 2026-11-16
 
 ### Changed

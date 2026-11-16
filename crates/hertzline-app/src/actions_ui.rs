@@ -642,9 +642,17 @@ pub fn list_action_catalog() -> ActionCatalogDto {
         ));
     }
 
-    // Fill live state for host-OS cards when readable.
+    // Probe only the recommended pack on catalog load (full probe freezes the UI).
+    const FAST_PROBE: &[&str] = &[
+        "windows.game_mode",
+        "windows.power_plan",
+        "windows.game_bar",
+    ];
     for action in &mut actions {
         if action.host_status != "available" {
+            continue;
+        }
+        if !FAST_PROBE.contains(&action.id.as_str()) {
             continue;
         }
         if let Ok(state) = read_host_state(&action.id, action.input_hint.as_deref()) {

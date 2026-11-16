@@ -8,6 +8,8 @@ let afterBench = null
 let lastVerdict = null
 let profilesState = null
 let homeCache = null
+let renderToken = 0
+let ignoreHashChange = false
 
 const parseRouteId = () => {
   const hash = window.location.hash.replace(/^#\/?/, "")
@@ -345,16 +347,7 @@ const renderHome = async (root) => {
       statTile(
         "Alimentazione",
         overview.power?.preset || (overview.power?.available ? "letta" : "n/d"),
-        overview.power?.message || ""
-      )
-    )
-    grid.appendChild(
-      statTile(
-        "Temp CPU",
-        overview.thermal?.cpu_temp_celsius != null
-          ? `${Number(overview.thermal.cpu_temp_celsius).toFixed(0)} C`
-          : "n/d",
-        `Livello: ${overview.thermal?.level || "n/d"}`
+        overview.power?.available ? "Piano attuale" : "Non letto"
       )
     )
     if (lastMeasure) {
@@ -365,7 +358,7 @@ const renderHome = async (root) => {
         statTile("Ultima misura CPU", formatMetric(lastMeasure.session.hardware.cpu_usage_percent))
       )
     } else {
-      grid.appendChild(statTile("Ultima misura", "ancora no", "Falla dopo Ottimizza"))
+      grid.appendChild(statTile("Ultima misura", "ancora no", "Dopo Ottimizza"))
     }
     results.appendChild(grid)
     status.textContent =
@@ -1571,38 +1564,65 @@ const renderOverlay = async (root) => {
   await refresh()
 }
 
+const setHashQuiet = (hashPath) => {
+  if (window.location.hash === hashPath) {
+    return
+  }
+  ignoreHashChange = true
+  window.location.hash = hashPath
+  queueMicrotask(() => {
+    ignoreHashChange = false
+  })
+}
+
 const renderRoute = async (routes, info) => {
+  const token = ++renderToken
   const id = parseRouteId()
   const route = routes.find((item) => item.id === id) || routes[0]
   const activeId = route.id
-  if (window.location.hash !== route.hash_path) {
-    window.location.hash = route.hash_path
-  }
+  setHashQuiet(route.hash_path)
   renderNav(routes, activeId)
   updateStepStrip(activeId)
   document.querySelector("#title").textContent = route.title
   const body = document.querySelector("#body")
   body.replaceChildren()
-  if (activeId === "home") {
-    await renderHome(body)
-  } else if (activeId === "measure") {
-    renderMeasure(body)
-  } else if (activeId === "benchmark") {
-    await renderBenchmark(body)
-  } else if (activeId === "actions") {
-    await renderActions(body)
-  } else if (activeId === "profiles") {
-    await renderProfiles(body)
-  } else if (activeId === "everyday") {
-    await renderEveryday(body)
-  } else if (activeId === "overlay") {
-    await renderOverlay(body)
-  } else if (activeId === "changelog") {
-    await renderChangelog(body)
-  } else if (activeId === "restore-all") {
-    await renderRestoreAll(body)
-  } else {
-    body.appendChild(el("p", "lede", "Route registrata."))
+  try {
+    if (activeId === "home") {
+      await renderHome(body)
+    } else if (activeId === "measure") {
+      renderMeasure(body)
+    } else if (activeId === "benchmark") {
+      await renderBenchmark(body)
+    } else if (activeId === "actions") {
+      await renderActions(body)
+    } else if (activeId === "profiles") {
+      await renderProfiles(body)
+    } else if (activeId === "everyday") {
+      await renderEveryday(body)
+    } else if (activeId === "overlay") {
+      await renderOverlay(body)
+    } else if (activeId === "changelog") {
+      await renderChangelog(body)
+    } else if (activeId === "restore-all") {
+      await renderRestoreAll(body)
+    } else {
+      body.appendChild(el("p", "lede", "Route registrata."))
+    }
+  } catch (error) {
+    if (token !== renderToken) {
+      return
+    }
+    body.replaceChildren()
+    body.appendChild(el("p", "status", `Errore pagina: ${error}`))
+    body.appendChild(
+      button("Riprova", () => handleNavigate(activeId), {
+        ariaLabel: "Riprova pagina",
+        className: "btn",
+      })
+    )
+  }
+  if (token !== renderToken) {
+    return
   }
   document.querySelector("#meta").textContent =
     `Shell non privilegiata v${info.app_version} (core ${info.core_version}). Nessuna elevazione all'avvio.`
@@ -1610,25 +1630,36 @@ const renderRoute = async (routes, info) => {
 }
 
 const handleNavigate = async (id) => {
-  const hashPath = await invoke("open_route", { id })
-  if (window.location.hash !== hashPath) {
-    window.location.hash = hashPath
+  try {
+    const hashPath = await invoke("open_route", { id })
+    setHashQuiet(hashPath)
+  } catch (error) {
+    setHashQuiet(`#/${id}`)
+    console.warn("open_route failed", error)
   }
   await renderRoute(shellRoutes, shellInfo)
 }
 
 window.addEventListener("hashchange", () => {
-  if (!shellInfo) {
+  if (!shellInfo || ignoreHashChange) {
     return
   }
   renderRoute(shellRoutes, shellInfo)
 })
 
 window.addEventListener("DOMContentLoaded", async () => {
-  shellInfo = await invoke("get_shell_info")
-  shellRoutes = shellInfo.routes
-  if (!window.location.hash) {
-    window.location.hash = shellRoutes[0].hash_path
+  const body = document.querySelector("#body")
+  try {
+    shellInfo = await invoke("get_shell_info")
+    shellRoutes = shellInfo.routes
+    if (!window.location.hash) {
+      setHashQuiet(shellRoutes[0].hash_path)
+    }
+    await renderRoute(shellRoutes, shellInfo)
+  } catch (error) {
+    if (body) {
+      body.replaceChildren()
+      body.appendChild(el("p", "status", `Avvio fallito: ${error}`))
+    }
   }
-  await renderRoute(shellRoutes, shellInfo)
 })
